@@ -205,3 +205,153 @@ body {
 
 .kpi-value { font-size: 42px; font-weight: 900; color: var(--text-dark); margin-bottom: 5px; }
 .kpi-label { font-size: 12px; font-weight: 700; color: var(--text-grey); text-transform: uppercase; letter-spacing: 2px; }
+
+
+/* --- SPLIT SCANNER LAYOUT --- */
+
+.scanner-wrapper {
+    max-width: 1100px;
+    margin: 40px auto;
+    padding: 0 20px;
+    display: grid;
+    grid-template-columns: 1fr 1.2fr; /* Right side slightly wider for table */
+    gap: 30px;
+    align-items: start; /* Don't stretch height */
+}
+
+/* Common Card Style */
+.card {
+    background: white;
+    border-radius: 16px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    margin-bottom: 20px;
+    border: 1px solid #f0f0f0;
+}
+
+/* --- LEFT COLUMN --- */
+.page-title { margin: 0 0 20px 0; font-size: 28px; color: #333; }
+
+/* Upload Card */
+.upload-card { text-align: center; min-height: 200px; display: flex; flex-direction: column; justify-content: center; }
+
+.upload-actions { display: flex; gap: 10px; justify-content: center; }
+
+.upload-btn {
+    flex: 1;
+    padding: 30px 20px;
+    border: 2px dashed #dbeafe;
+    background: #eff6ff;
+    border-radius: 12px;
+    cursor: pointer;
+    color: var(--nav-blue);
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.upload-btn:hover { background: #dbeafe; border-color: var(--nav-blue); }
+
+.preview-box {
+    width: 100%;
+    height: 250px;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    position: relative;
+}
+#image-preview { width: 100%; height: 100%; object-fit: contain; }
+
+#clear-image-btn {
+    position: absolute; top: 10px; right: 10px;
+    width: 30px; height: 30px; border-radius: 50%;
+    border: none; background: white; cursor: pointer;
+}
+
+.main-btn {
+    width: 100%; padding: 15px;
+    background: var(--nav-blue); color: white;
+    border: none; border-radius: 10px; font-weight: 700;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+/* Meta Data Card */
+.meta-card label { display: block; font-weight: 700; margin-bottom: 15px; color: #555; }
+.input-group { margin-bottom: 15px; }
+.std-input {
+    width: 100%; padding: 12px;
+    border: 1px solid #e0e0e0; border-radius: 8px;
+    box-sizing: border-box; font-size: 14px;
+}
+
+/* --- RIGHT COLUMN --- */
+
+/* Table Card */
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.card-header h3 { margin: 0; font-size: 18px; }
+.badge { background: #e0f2fe; color: var(--nav-blue); font-size: 10px; padding: 4px 8px; border-radius: 4px; font-weight: 700; text-transform: uppercase; }
+
+.data-table { width: 100%; border-collapse: collapse; }
+/* Update these specific table styles */
+
+.data-table th { 
+    text-align: left; 
+    color: #888; 
+    font-size: 12px; 
+    text-transform: uppercase; 
+    padding-bottom: 10px; 
+    border-bottom: 2px solid #f0f0f0; 
+}
+
+.data-table td { 
+    padding: 8px 5px; /* Slightly tighter padding */
+    border-bottom: 1px solid #f9f9f9; 
+}
+
+.table-input { 
+    width: 100%; 
+    border: 1px solid transparent; 
+    background: transparent; 
+    font-weight: bold; 
+    font-size: 15px; 
+    padding: 5px;
+    border-radius: 6px;
+}
+
+/* Align values to the right, but keep text (Units) centered or left as preferred */
+.nutrient-val { text-align: right; }
+.nutrient-unit { text-align: center; color: #888; }
+
+.table-input:hover, .table-input:focus { 
+    background: #f0f7ff; 
+    border-color: #cce3ff; 
+    outline: none;
+}
+
+/* AI Card */
+.ai-card { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: none; }
+.ai-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.ai-header h3 { margin: 0; font-size: 18px; }
+
+.ai-btn { background: white; border: 1px solid #ccc; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; }
+.ai-btn:hover { border-color: #333; }
+
+.ai-content { display: flex; align-items: center; gap: 20px; }
+.gi-box { background: white; padding: 10px 20px; border-radius: 10px; text-align: center; min-width: 80px; }
+.gi-label { display: block; font-size: 10px; color: #888; text-transform: uppercase; font-weight: 700; }
+.gi-value { font-size: 28px; font-weight: 900; color: #333; line-height: 1; }
+.ai-message { font-size: 14px; color: #666; line-height: 1.4; margin: 0; }
+
+/* Save Button */
+.save-btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 12px; font-weight: 700; font-size: 16px; cursor: pointer; }
+.save-btn:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+.error-msg { text-align: center; color: #ef4444; font-size: 12px; margin-top: 10px; }
+
+/* Responsive (Mobile Stacking) */
+@media (max-width: 768px) {
+    .scanner-wrapper { grid-template-columns: 1fr; }
+}
+
+.hidden { display: none !important; }
+.spinner { border: 3px solid rgba(0,0,0,0.1); border-top: 3px solid var(--nav-blue); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 10px;}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }

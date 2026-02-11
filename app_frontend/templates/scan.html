@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="scanner-wrapper">
+    
+    <div class="scan-left">
+        
+        <div class="card upload-card">
+            <div id="image-preview-container" class="preview-box hidden">
+                <img id="image-preview" src="" alt="Preview">
+                <button id="clear-image-btn">×</button>
+            </div>
+
+            <div id="initial-actions" class="upload-actions">
+                <button class="upload-btn" onclick="document.getElementById('file-upload').click()">
+                    <span class="icon">📁</span> Upload
+                </button>
+                <button class="upload-btn" onclick="document.getElementById('camera-upload').click()">
+                    <span class="icon">📷</span> Camera
+                </button>
+            </div>
+
+            <input type="file" id="file-upload" accept="image/*" hidden>
+            <input type="file" id="camera-upload" accept="image/*" capture="environment" hidden>
+
+            <button id="scan-now-btn" class="main-btn hidden">Run Scanner</button>
+            
+            <div id="loading-spinner" class="hidden" style="margin-top:15px; text-align:center;">
+                <div class="spinner"></div> Scanning...
+            </div>
+        </div>
+
+        <div class="card meta-card">
+            <label>Food Details</label>
+            <div class="input-group">
+                <input type="text" id="food-name" placeholder="Food Name" class="std-input">
+            </div>
+            <div class="input-group">
+                <select id="meal-type" class="std-input">
+                    <option value="" disabled selected>Meal Type</option>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="scan-right">
+        
+        <div class="card table-card">
+    <div class="card-header">
+        <h3>Nutrition Facts</h3>
+        <span class="badge">Editable</span>
+    </div>
+    
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 40%;">Nutrient</th>
+                <th style="width: 30%;">Value</th>
+                <th style="width: 30%;">Unit</th> </tr>
+        </thead>
+        <tbody id="nutrient-table-body">
+            <tr class="empty-state-row">
+                <td colspan="3" style="text-align:center; padding: 40px; color: #aaa;">
+                    Upload an image to see data
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    </div>
+
+        <div class="card ai-card">
+            <div class="ai-header">
+                <h3>AI Analysis</h3>
+                <button id="predict-gi-btn" class="ai-btn">Predict GI</button>
+            </div>
+            
+            <div id="gi-result-area" class="ai-content hidden">
+                <div class="gi-box">
+                    <span class="gi-label">Predicted GI</span>
+                    <span id="gi-value-display" class="gi-value">--</span>
+                </div>
+                <p class="ai-message">
+                    Based on the fiber-to-sugar ratio, this food is likely 
+                    <span id="gi-text-desc">moderate</span> GI.
+                </p>
+            </div>
+        </div>
+
+        <button id="save-entry-btn" class="save-btn" disabled>Save Entry</button>
+        <p id="save-helper-text" class="error-msg">Complete all fields to save</p>
+
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='scan.js') }}"></script>
+{% endblock %}

@@ -9,14 +9,11 @@
                 <p>Let's stay on track with your glucose goals today.</p>
             </div>
             
-            <div class="hero-scan-btn" onclick="document.getElementById('file-upload').click()">
+            <a href="/scan" class="hero-scan-btn">
                 <span class="scan-icon">📷</span>
                 <span>Scan New Meal</span>
-            </div>
-
-            <form action="/upload" method="post" enctype="multipart/form-data" id="scan-form">
-                <input type="file" name="file" id="file-upload" style="display: none;" onchange="document.getElementById('scan-form').submit()">
-            </form>
+            </a>
+            
         </div>
     </header>
 
