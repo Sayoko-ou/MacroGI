@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from modules.gi_predictor import predict_gi_sklearn
 from modules.genai_advisor import get_food_fact
+from modules.ocr_engine import extract_nutrients
 
 app = FastAPI()
 
@@ -10,6 +11,17 @@ class AnalysisRequest(BaseModel):
     food_name: str
     nutrients: dict # {'sugar': 12, 'fiber': 4 ...}
 
+@app.post("/scan-food")
+async def scan_food(file: UploadFile = File(...)):
+    # Read the file bytes
+    image_bytes = await file.read()
+    
+    # Call your new refactored function
+    data = extract_nutrients(image_bytes)
+    
+    return data
+
+    
 @app.post("/analyze-food")
 async def analyze_food(request: AnalysisRequest):
     
