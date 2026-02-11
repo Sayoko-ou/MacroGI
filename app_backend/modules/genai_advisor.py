@@ -1,34 +1,41 @@
-import google.generativeai as genai
+# app_backend/modules/genai_advisor.py
+# app_backend/modules/genai_advisor.py
 import os
 
-# Configure with your key (Best practice: use Environment Variables)
-# For now, you can paste it, but don't upload the key to GitHub!
-GENAI_API_KEY = "PASTE_YOUR_GOOGLE_API_KEY_HERE"
-genai.configure(api_key=GENAI_API_KEY)
+# --- SAFE IMPORT BLOCK ---
+try:
+    import google.generativeai as genai
+    HAS_GENAI_LIB = True
+except ImportError:
+    HAS_GENAI_LIB = False
+    print("⚠️ Google GenAI library not found. AI tips will be mocked.")
+
+# Get key safely
+GENAI_API_KEY = os.getenv("GENAI_API_KEY", "")
 
 def get_food_fact(food_name, nutrients, predicted_gi):
-    """
-    Sends nutrient info to Gemini and gets a 1-sentence tip.
-    """
-    model = genai.GenerativeModel('gemini-pro')
-    
-    prompt = f"""
-    I am analyzing a food item: {food_name}.
-    It has the following nutritional profile per serving:
-    - Sugar: {nutrients.get('sugar', 0)}g
-    - Fiber: {nutrients.get('fiber', 0)}g
-    - Carbs: {nutrients.get('carbs', 0)}g
-    - Fat: {nutrients.get('fat', 0)}g
-    
-    Our predictive model estimated the Glycemic Index (GI) is {predicted_gi}.
-    
-    Based on this, provide ONE interesting health fact or a suggestion for how to eat this 
-    to lower the glucose spike (e.g. "Pair with protein"). Keep it under 20 words.
-    """
-    
+    # 1. CHECK MISSING LIBRARY
+    if not HAS_GENAI_LIB:
+        return f"MOCK TIP: Install 'google-generativeai' to get real AI tips for {food_name}."
+
+    # 2. CHECK MISSING KEY
+    if not GENAI_API_KEY or GENAI_API_KEY == "PASTE_YOUR_GOOGLE_API_KEY_HERE":
+        return f"MOCK TIP: Add API Key to get real AI tips for {food_name}."
+
+    # 3. REAL LOGIC
     try:
+        genai.configure(api_key=GENAI_API_KEY)
+        model = genai.GenerativeModel('gemini-pro')
+        
+        prompt = f"""
+        Analyze this food: {food_name}.
+        GI Score: {predicted_gi}.
+        Nutrients: {nutrients}.
+        Give a 1-sentence health tip to lower the glucose spike.
+        """
+        
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        print(f"GenAI Error: {e}")
-        return "Could not generate a tip at this time."
+        print(f"GenAI Connection Error: {e}")
+        return "Could not generate tip at this time."

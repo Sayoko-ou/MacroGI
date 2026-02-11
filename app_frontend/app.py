@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from datetime import datetime, timedelta
 import random
+import requests
 import time # Needed for simulated delays
 
 app = Flask(__name__)
@@ -44,52 +45,78 @@ def scan_page():
 
 @app.route('/api/ocr', methods=['POST'])
 def api_ocr_sim():
-    """Simulates recieving an image and running OCR"""
-    time.sleep(1.5) # Simulate processing delay
-
     if 'file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
+    
+    file = request.files['file']
+    
+    # 1. TRY CONNECTING TO FASTAPI (The Real Way)
+    try:
+        # Prepare the file to send to Port 8000
+        # We need to send it as 'multipart/form-data'
+        files_to_send = {'file': (file.filename, file.read(), file.mimetype)}
+        
+        # Send to the FastAPI endpoint defined in ai_service.py
+        response = requests.post("http://127.0.0.1:8000/scan-food", files=files_to_send)
+        
+        if response.status_code == 200:
+            print("✅ OCR Success via FastAPI")
+            return jsonify(response.json())
+        else:
+            return jsonify({"error": f"FastAPI Error: {response.text}"}), 500
+            
+    except requests.exceptions.ConnectionError:
+        print("⚠️ FastAPI (OCR) is offline. Using Simulation Data.")
 
-    # In reality, you would send this file to your FastAPI service here.
-    # For demo, we return fake detected data.
-   # app.py -> api_ocr_sim
-
+    # 2. FALLBACK (Only runs if you forgot to start the second terminal)
     fake_ocr_data = {
         "nutrients": {
-            "carbs": 32.5,
-            "sugar": 12.0,
-            "fiber": 4.5,
-            "protein": 8.0,
-            "fat": 10.2,
-            "sodium": 150  # Added sodium to test the 'mg' logic
+            "carbs": 32.5, "sugar": 12.0, "fiber": 4.5, 
+            "protein": 8.0, "fat": 10.2, "sodium": 150
         },
-        "suggested_name": random.choice(["", "Unknown Label", "Granola Bar"])
+        "suggested_name": "Simulation (Server Offline)"
     }
     return jsonify(fake_ocr_data)
 
+
 @app.route('/api/predict_gi', methods=['POST'])
 def api_predict_gi_sim():
-    """Simulates taking numerical nutrient data and predicting GI"""
-    time.sleep(1) # Simulate delay
     data = request.json
-
-    # In reality, send 'data' to FastAPI GI Model.
-    # Simple fake logic based on sugar/fiber ratio
+    
+    # 1. TRY CONNECTING TO FASTAPI (The Real Way)
     try:
-        sugar = float(data.get('sugar', 0))
-        fiber = float(data.get('fiber', 1)) # avoid div by zero
+        # Assuming FastAPI is running on Port 8000
+        response = requests.post("http://127.0.0.1:8000/analyze-food", json=data, timeout=3)
+        
+        if response.status_code == 200:
+            print("✅ Connected to FastAPI Backend!")
+            return jsonify(response.json())
+        else:
+            print(f"⚠️ FastAPI Error: {response.status_code}")
+            
+    except requests.exceptions.ConnectionError:
+        print("⚠️ FastAPI is offline. Using Simulation Data.")
+
+    # 2. FALLBACK SIMULATION (If FastAPI is down or not implemented yet)
+    # This keeps your frontend working no matter what
+    try:
+        sugar = float(data['nutrients'].get('sugar', 0))
+        fiber = float(data['nutrients'].get('fiber', 1))
         
         base_gi = 50 + (sugar * 1.5) - (fiber * 2)
-        final_gi = int(max(10, min(100, base_gi))) # Clamp between 10 and 100
+        final_gi = int(max(10, min(100, base_gi)))
+        
+        gi_color = '#28a745'
+        if final_gi >= 55: gi_color = '#ffc107'
+        if final_gi >= 70: gi_color = '#dc3545'
 
-        gi_color = '#28a745' # Green
-        if final_gi >= 55: gi_color = '#ffc107' # Orange
-        if final_gi >= 70: gi_color = '#dc3545' # Red
-
-        return jsonify({"gi": final_gi, "gi_color": gi_color})
-
-    except ValueError:
-        return jsonify({"error": "Invalid numerical data"}), 400
+        return jsonify({
+            "gi": final_gi, 
+            "gi_color": gi_color, 
+            "ai_message": "Simulation: High fiber helps reduce glucose spikes."
+        })
+    except:
+        return jsonify({"error": "Invalid data"}), 400
 
 
 ## Use this when implementing
