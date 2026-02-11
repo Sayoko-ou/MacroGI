@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MacroGI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-content">
+            <a href="/" class="logo">MacroGI</a>
+            <div class="nav-links">
+                <a href="/" class="nav-item active">Home</a>
+                <a href="/scan" class="nav-item">Scanner</a>
+                <a href="#" class="nav-item">Analytics</a>
+                <a href="#" class="nav-item">Profile</a>
+            </div>
+        </div>
+    </nav>
+
+    {% block content %}
+    {% endblock %}
+
+</body>
+</html>
