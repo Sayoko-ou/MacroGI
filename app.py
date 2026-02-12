@@ -3,8 +3,11 @@ from datetime import datetime, timedelta
 import random
 import requests
 import time # Needed for simulated delays
+from app_backend.modules.chatbot import MacroGIBot
 
-app = Flask(__name__)
+app = Flask(__name__,
+            template_folder="app_frontend/templates",
+            static_folder="app_frontend/static")
 app.secret_key = "applied_ai_project"
 
 # --- SIMPLE USER DATABASE (No MongoDB needed) ---
@@ -192,6 +195,20 @@ def api_save_entry_sim():
         "message": "Entry saved to diary!",
         "saved_at": data['timestamp'] # Send it back just in case
     })
+
+
+bot = MacroGIBot()
+
+@app.route("/advisor", methods=["POST"])
+def get_response():
+    user_message = request.json.get("message")
+    if not user_message:
+        return jsonify({"error": "No message provided"}), 400
+    
+    # Call your Gemini bot
+    bot_reply = bot.get_advice(user_message)
+    
+    return jsonify({"reply": bot_reply})
 
 
 if __name__ == '__main__':
