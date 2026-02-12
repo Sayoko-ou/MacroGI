@@ -50,7 +50,36 @@ body {
     text-decoration: none;
 }
 
-.nav-links { display: flex; gap: 40px; }
+/* --- NAVBAR FIXES --- */
+
+/* 1. Force Vertical Alignment */
+.nav-links { 
+    display: flex; 
+    gap: 30px; 
+    align-items: center; /* <--- This aligns text and button perfectly */
+}
+
+/* 2. Style the Logout Button */
+.nav-btn {
+    border: 1px solid rgba(255, 255, 255, 0.5); /* Semi-transparent white border */
+    padding: 8px 24px;
+    border-radius: 50px; /* Pill shape */
+    color: white;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+    letter-spacing: 0.5px;
+}
+
+/* Hover Effect: Turn white with blue text */
+.nav-btn:hover {
+    background-color: white;
+    color: var(--nav-blue); 
+    border-color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
 
 .nav-item {
     color: rgba(255, 255, 255, 0.7);

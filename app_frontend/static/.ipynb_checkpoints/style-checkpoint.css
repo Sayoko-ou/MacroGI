@@ -50,7 +50,36 @@ body {
     text-decoration: none;
 }
 
-.nav-links { display: flex; gap: 40px; }
+/* --- NAVBAR FIXES --- */
+
+/* 1. Force Vertical Alignment */
+.nav-links { 
+    display: flex; 
+    gap: 30px; 
+    align-items: center; /* <--- This aligns text and button perfectly */
+}
+
+/* 2. Style the Logout Button */
+.nav-btn {
+    border: 1px solid rgba(255, 255, 255, 0.5); /* Semi-transparent white border */
+    padding: 8px 24px;
+    border-radius: 50px; /* Pill shape */
+    color: white;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+    letter-spacing: 0.5px;
+}
+
+/* Hover Effect: Turn white with blue text */
+.nav-btn:hover {
+    background-color: white;
+    color: var(--nav-blue); 
+    border-color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
 
 .nav-item {
     color: rgba(255, 255, 255, 0.7);
@@ -352,26 +381,107 @@ body {
     .scanner-wrapper { grid-template-columns: 1fr; }
 }
 
+
 .hidden { display: none !important; }
 .spinner { border: 3px solid rgba(0,0,0,0.1); border-top: 3px solid var(--nav-blue); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 10px;}
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
 
+
+
+
+/* CHATBOT */
+/* FAB Button */
 .chat-fab {
     position: fixed; bottom: 20px; right: 20px;
     width: 60px; height: 60px; border-radius: 50%;
     background: #3977d4; color: white; border: none; cursor: pointer;
-}
-.chat-panel {
-    position: fixed; bottom: 90px; right: 20px;
-    width: 300px; height: 400px; background: white;
-    border: 1px solid #ccc; display: flex; flex-direction: column;
-}
-.hidden {
-    display: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    z-index: 1001;
+    display: flex; align-items: center; justify-content: center;
 }
 
-#chat-window {
+/* Main Window */
+.chat-container {
+    position: fixed; bottom: 90px; right: 20px;
+    width: 320px; height: 450px; background: white;
+    border: 1px solid #ddd; display: flex; flex-direction: column;
+    border-radius: 12px; overflow: hidden;
     transition: all 0.3s ease;
-    z-index: 1001; /* Ensure it stays above everything */
+    z-index: 1001;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.hidden { display: none !important; }
+
+/* Header */
+.chat-header {
+    background: #3977d4;
+    color: white;
+    padding: 15px;
+    font-family: sans-serif;
+    font-size: 1rem;
+}
+
+/* Message Display Area */
+.chat-display {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background-color: #f9f9f9;
+}
+
+/* Bubbles */
+.message {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 18px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    font-family: sans-serif;
+}
+
+.bot-message {
+    align-self: flex-start;
+    background: #e9e9eb;
+    color: #000;
+    border-bottom-left-radius: 2px;
+}
+
+.user-message {
+    align-self: flex-end;
+    background: #3977d4;
+    color: white;
+    border-bottom-right-radius: 2px;
+}
+
+/* Input Area */
+.chat-input-area {
+    border-top: 1px solid #eee;
+    padding: 10px;
+    display: flex;
+    background: white;
+}
+
+#user-input {
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    padding: 8px 15px;
+    outline: none;
+    font-size: 0.9rem;
+}
+
+.send-btn {
+    margin-left: 8px;
+    background: #3977d4;
+    color: white;
+    border: none;
+    padding: 5px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
 }

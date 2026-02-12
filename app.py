@@ -2,24 +2,54 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from datetime import datetime, timedelta
 import random
 import requests
-import time # Needed for simulated delays
-from app_backend.modules.chatbot import MacroGIBot
+import time
+import os
+
+# Safe import chatbot
+# Cannot launch server without it
+bot = None
+try:
+    # Try importing your teammate's code
+    from app_backend.modules.chatbot import MacroGIBot
+    # If this succeeds, we create the real bot
+    bot = MacroGIBot()
+    print("✅ Real AI Chatbot Connected")
+
+except Exception as e:
+    # If it fails (Missing Key, etc.), we print error and use a Dummy
+    print(f"⚠️ Chatbot Error: {e}")
+    print("ℹ️ Switching to Mock Chatbot (Safe Mode)")
+
+    class MockBot:
+        def get_advice(self, user_text):
+            return "System: I am currently offline because the API Key is missing. Please ask JingEn to check the .env file."
+    
+    bot = MockBot()
+
 
 app = Flask(__name__,
             template_folder="app_frontend/templates",
             static_folder="app_frontend/static")
-app.secret_key = "applied_ai_project"
+app.secret_key = os.urandom(24)
 
-# --- SIMPLE USER DATABASE (No MongoDB needed) ---
-# Format: "email": "password"
+# --- 1. UPDATED USER DATABASE (With IDs) ---
+# Format: Email is key -> Value is dict with details
 USERS = {
-    "alex@macrogi.com": "password123",
-    "judge@school.com": "admin"
+    "alex@macrogi.com": {
+        "password": "password123",
+        "name": "Alex",
+        "id": "1" 
+    },
+    "judge@school.com": {
+        "password": "admin",
+        "name": "Judge",
+        "id": "0"
+    }
 }
 
 # --- LOGIN HELPER ---
 def is_logged_in():
-    return 'user_email' in session
+    return 'user_id' in session
 
     
 # --- Existing Helper Functions ---
@@ -31,49 +61,94 @@ def get_greeting():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
+    # If already logged in, skip login page
+    if is_logged_in():
+        return redirect(url_for('home'))
+
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
         
-        # Check against our simple dictionary
-        if email in USERS and USERS[email] == password:
-            session['user_email'] = email
-            session['user_name'] = email.split('@')[0].capitalize() # "Alex"
-            return redirect(url_for('home'))
+        # 1. Check if email exists in our dict
+        if email in USERS:
+            user_obj = USERS[email]
+            
+            # 2. Check password match
+            if user_obj['password'] == password:
+                # 3. Save User ID and Name to Cookie
+                session['user_id'] = user_obj['id']
+                session['user_name'] = user_obj['name']
+                session['user_email'] = email
+                return redirect(url_for('home'))
+            else:
+                flash("Incorrect password")
         else:
-            flash("Invalid email or password")
+            flash("User not found")
             
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    session.clear() # Deletes the cookie
+    session.clear() # This kills the cookie
     return redirect(url_for('login_page'))
     
 
 @app.route('/')
 def home():
     if not is_logged_in(): return redirect(url_for('login_page'))
-    # (Keep your existing home route logic exactly the same)
-    # ... [Truncated for brevity, assume existing code here] ...
-    # For demo purposes, re-inserting minimal needed variables if you copy-paste:
-    selected_date = datetime.now().date()
+
+    greeting = get_greeting()
+    
+    # --- 1. GET DATE FROM URL ---
+    # Check if user clicked a specific date (e.g. /?date=2026-02-10)
+    date_str = request.args.get('date')
+    
+    if date_str:
+        try:
+            # Convert string "2026-02-10" -> Date Object
+            selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            # If someone messes with URL, fallback to today
+            selected_date = datetime.now().date()
+    else:
+        # Default to today
+        selected_date = datetime.now().date()
+
+    # --- 2. GENERATE CALENDAR STRIP ---
+    # We always show the *last 7 days* ending on today
+    today = datetime.now().date() 
     dates = []
+    
     for i in range(6, -1, -1):
-        d = datetime.now().date() - timedelta(days=i)
+        d = today - timedelta(days=i)
         dates.append({
             'str': d.strftime('%Y-%m-%d'),
             'day_name': d.strftime('%a'),
             'day_num': d.day,
-            'is_selected': d == selected_date
+            # Highlight if this day matches the one we selected
+            'is_selected': d == selected_date 
         })
+
+    # --- 3. GENERATE DATA FOR SELECTED DATE ---
+    # Use the selected date as the "Seed" so the numbers are consistent for that day
+    # (e.g. Feb 10 always shows the same numbers, Feb 9 shows different ones)
     random.seed(selected_date.toordinal())
+    
     gi_val = random.randint(40, 75)
     gi_color = '#28a745' if gi_val < 55 else '#ffc107' if gi_val < 70 else '#dc3545'
-    kpi_data = {'calories': random.randint(1200, 2500), 'sugar': random.randint(20, 80), 'gi': gi_val, 'gi_color': gi_color}
     
-    return render_template('index.html', greeting=get_greeting(), user=session['user_name'], dates=dates, kpi=kpi_data)
-
+    kpi_data = {
+        'calories': random.randint(1200, 2500), 
+        'sugar': random.randint(20, 80), 
+        'gi': gi_val, 
+        'gi_color': gi_color
+    }
+    
+    return render_template('index.html', 
+                         greeting=greeting, 
+                         user=session.get('user_name'),
+                         kpi=kpi_data, 
+                         dates=dates)
 @app.route('/scan')
 def scan_page():
     if not is_logged_in(): return redirect(url_for('login_page'))
@@ -89,7 +164,7 @@ def api_ocr_sim():
     
     file = request.files['file']
     
-    # 1. TRY CONNECTING TO FASTAPI (The Real Way)
+    # 1. TRY CONNECTING TO FASTAPI 
     try:
         # Prepare the file to send to Port 8000
         # We need to send it as 'multipart/form-data'
@@ -177,18 +252,21 @@ def api_predict_gi_sim():
 @app.route('/scan/save_entry', methods=['POST'])
 def api_save_entry_sim():
     """Simulates saving the final validated entry to DB"""
+
+    if not is_logged_in(): return jsonify({"error": "Unauthorized"}), 401
+        
     time.sleep(0.5)
     
     # 1. Get data from Frontend
     data = request.json
     
-    # 2. INJECT TIMESTAMP (Server Time)
+    # 2. INJECT SERVER DATA
     # Formats as "2023-10-27 14:30:00"
     data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data['user_id'] = session['user_id']
     
     # 3. Save to DB (or print for demo)
-    # If you were using MongoDB: db.diary.insert_one(data)
-    print(f"✅ SAVING TO DB (With Time): {data}") 
+    print(f"SAVED for User {data['user_id']}: {data}") 
     
     return jsonify({
         "status": "success", 
@@ -197,7 +275,6 @@ def api_save_entry_sim():
     })
 
 
-bot = MacroGIBot()
 
 @app.route("/advisor", methods=["POST"])
 def get_response():
