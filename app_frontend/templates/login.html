@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 350px; margin: 80px auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); text-align: center;">
+    <h1 style="margin-bottom: 20px; color: #333;">MacroGI</h1>
+    
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div style="background: #fee; color: #c00; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 14px;">
+                {{ messages[0] }}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="/login">
+        <div style="margin-bottom: 15px; text-align: left;">
+            <label style="font-weight: bold; font-size: 12px; color: #666;">EMAIL</label>
+            <input type="email" name="email" value="alex@macrogi.com" required 
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+        </div>
+        
+        <div style="margin-bottom: 25px; text-align: left;">
+            <label style="font-weight: bold; font-size: 12px; color: #666;">PASSWORD</label>
+            <input type="password" name="password" value="password123" required 
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+        </div>
+        
+        <button type="submit" 
+                style="width: 100%; padding: 12px; background: #3977d4; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+            Sign In
+        </button>
+    </form>
+    
+    <p style="margin-top: 20px; font-size: 12px; color: #888;">
+        Demo Credentials:<br>
+        alex@macrogi.com / password123
+    </p>
+</div>
+{% endblock %}

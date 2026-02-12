@@ -355,3 +355,23 @@ body {
 .hidden { display: none !important; }
 .spinner { border: 3px solid rgba(0,0,0,0.1); border-top: 3px solid var(--nav-blue); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 10px;}
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+
+.chat-fab {
+    position: fixed; bottom: 20px; right: 20px;
+    width: 60px; height: 60px; border-radius: 50%;
+    background: #3977d4; color: white; border: none; cursor: pointer;
+}
+.chat-panel {
+    position: fixed; bottom: 90px; right: 20px;
+    width: 300px; height: 400px; background: white;
+    border: 1px solid #ccc; display: flex; flex-direction: column;
+}
+.hidden {
+    display: none;
+}
+
+#chat-window {
+    transition: all 0.3s ease;
+    z-index: 1001; /* Ensure it stays above everything */
+}
