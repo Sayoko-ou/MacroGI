@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from modules.gi_predictor import predict_gi_sklearn
 from modules.genai_advisor import get_food_fact
 from modules.ocr_engine import extract_nutrients
+from modules.insulin_predictor import predict_insulin_dosage 
 
 app = FastAPI()
 
@@ -11,37 +12,37 @@ class AnalysisRequest(BaseModel):
     food_name: str
     nutrients: dict # {'sugar': 12, 'fiber': 4 ...}
 
+
 @app.post("/scan-food")
 async def scan_food(file: UploadFile = File(...)):
-    # Read the file bytes
     image_bytes = await file.read()
-    
-    # Call your new refactored function
     data = extract_nutrients(image_bytes)
-    
     return data
+
 
     
 @app.post("/analyze-food")
 async def analyze_food(request: AnalysisRequest):
     
-    # 1. Run the Regression Model (Your Teammate's work)
+    # --- PROCESS 1: TEAGAN'S MODEL (GI) ---
     predicted_gi = predict_gi_sklearn(request.nutrients)
-    
-    # Clamp value between 0-100 just in case
     predicted_gi = max(0, min(100, int(predicted_gi)))
     
-    # 2. Run the GenAI Model (Gemini)
-    # We pass the GI we just calculated so the AI knows context
+    # --- PROCESS 2: WEICONG'S MODEL (Insulin) ---
+    # It needs the result from Process 1
+    suggested_insulin = predict_insulin_dosage(request.nutrients, predicted_gi)
+    
+    # --- PROCESS 3: GENAI (Advisor) ---
     ai_tip = get_food_fact(request.food_name, request.nutrients, predicted_gi)
     
-    # 3. Determine Color Label
-    color = '#28a745' # Green
-    if predicted_gi >= 55: color = '#ffc107' # Orange
-    if predicted_gi >= 70: color = '#dc3545' # Red
+    # Determine Colors
+    gi_color = '#28a745'
+    if predicted_gi >= 55: gi_color = '#ffc107'
+    if predicted_gi >= 70: gi_color = '#dc3545'
 
     return {
         "gi": predicted_gi,
-        "gi_color": color,
+        "gi_color": gi_color,
+        "insulin_suggestion": suggested_insulin,  # <--- Sending this to Frontend
         "ai_message": ai_tip
     }

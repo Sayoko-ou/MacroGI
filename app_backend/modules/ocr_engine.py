@@ -224,7 +224,7 @@ def extract_nutrients(image_bytes):
         "Protein": ["protein"],
         "Total Fat": ["total fat", "fat"],
         "Carbohydrate": ["carbohydrate", "carb", "carbs"],
-        "Sugars": ["sugar", "sugars", "total sugars"],
+        #"Sugars": ["sugar", "sugars", "total sugars"],
         "Fibre": ["fibre", "fiber", "dietary fiber"],
         "Sodium": ["sodium", "salt"]
     }

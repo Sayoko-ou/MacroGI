@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('file', selectedFile);
 
         try {
-            const response = await fetch('/api/ocr', { method: 'POST', body: formData });
+            const response = await fetch('/scan/ocr', { method: 'POST', body: formData });
             
             // READ JSON SAFELY
             let data;
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         predictGiBtn.disabled = true;
 
         try {
-            const response = await fetch('/api/predict_gi', {
+            const response = await fetch('/scan/predict_gi', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -190,17 +190,34 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (response.ok) {
+                // 1. Update GI Display (Existing code)
                 if(giValueDisplay) {
                     giValueDisplay.textContent = data.gi;
                     giValueDisplay.style.color = data.gi_color;
                 }
                 
-                // Update AI Message safely
+                // 2. Update AI Tip (Existing code)
                 const aiMsgBox = document.querySelector('.ai-message');
                 if(aiMsgBox) {
                     aiMsgBox.innerHTML = `💡 <strong>Tip:</strong> ${data.ai_message || 'No tip available.'}`;
                 }
                 
+                // 3. SHOW INSULIN SUGGESTION (Updated)
+                const insulinHint = document.getElementById('insulin-hint');
+                const insulinInput = document.getElementById('insulin-input');
+                
+                if (insulinHint) {
+                    // Reveal the hint text
+                    insulinHint.classList.remove('hidden');
+                    insulinHint.innerHTML = `🤖 AI Suggests: ${data.insulin_suggestion} units`;
+                    
+                    // Optional: Highlight the input box to draw attention
+                    if(insulinInput) {
+                        insulinInput.style.borderColor = "#28a745";
+                        insulinInput.style.boxShadow = "0 0 5px rgba(40, 167, 69, 0.3)";
+                    }
+                }
+
                 if(giResultArea) giResultArea.classList.remove('hidden');
                 giPredicted = true;
             } else {

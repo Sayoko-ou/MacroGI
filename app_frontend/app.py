@@ -115,59 +115,59 @@ def api_ocr_sim():
     return jsonify(fake_ocr_data)
 
 
-#@app.route('/scan/predict_gi', methods=['POST'])
-#def api_predict_gi_sim():
-#    data = request.json
-#    
-#    # 1. TRY CONNECTING TO FASTAPI (The Real Way)
-#    try:
-#        # Assuming FastAPI is running on Port 8000
-#        response = requests.post("http://127.0.0.1:8000/analyze-food", json=data, timeout=3)
-#        
-#        if response.status_code == 200:
-#            print("✅ Connected to FastAPI Backend!")
-#            return jsonify(response.json())
-#        else:
-#            print(f"⚠️ FastAPI Error: {response.status_code}")
-#            
-#    except requests.exceptions.ConnectionError:
-#        print("⚠️ FastAPI is offline. Using Simulation Data.")
-#
-#    # 2. FALLBACK SIMULATION (If FastAPI is down or not implemented yet)
-#    # This keeps your frontend working no matter what
-#    try:
-#        sugar = float(data['nutrients'].get('sugar', 0))
-#        fiber = float(data['nutrients'].get('fiber', 1))
-#        
-#        base_gi = 50 + (sugar * 1.5) - (fiber * 2)
-#        final_gi = int(max(10, min(100, base_gi)))
-#        
-#        gi_color = '#28a745'
-#        if final_gi >= 55: gi_color = '#ffc107'
-#        if final_gi >= 70: gi_color = '#dc3545'
-#
-#        return jsonify({
-#            "gi": final_gi, 
-#            "gi_color": gi_color, 
-#            "ai_message": "Simulation: High fiber helps reduce glucose spikes."
-#        })
-#    except:
-#        return jsonify({"error": "Invalid data"}), 400
-
-
-# Use this when implementing
 @app.route('/scan/predict_gi', methods=['POST'])
 def api_predict_gi_sim():
-    data = request.json # Grab data from frontend table
+    data = request.json
     
-    # Connect to FastAPI
+    # 1. TRY CONNECTING TO FASTAPI (The Real Way)
     try:
-        # Note: Port 8000 is where FastAPI lives
-        response = requests.post("http://127.0.0.1:8000/analyze-food", json=data)
-        return jsonify(response.json())
+        # Assuming FastAPI is running on Port 8000
+        response = requests.post("http://127.0.0.1:8000/analyze-food", json=data, timeout=3)
         
+        if response.status_code == 200:
+            print("✅ Connected to FastAPI Backend!")
+            return jsonify(response.json())
+        else:
+            print(f"⚠️ FastAPI Error: {response.status_code}")
+            
     except requests.exceptions.ConnectionError:
-        return jsonify({"error": "AI Service is offline"}), 500
+        print("⚠️ FastAPI is offline. Using Simulation Data.")
+
+    # 2. FALLBACK SIMULATION (If FastAPI is down or not implemented yet)
+    # This keeps your frontend working no matter what
+    try:
+        sugar = float(data['nutrients'].get('sugar', 0))
+        fiber = float(data['nutrients'].get('fiber', 1))
+        
+        base_gi = 50 + (sugar * 1.5) - (fiber * 2)
+        final_gi = int(max(10, min(100, base_gi)))
+        
+        gi_color = '#28a745'
+        if final_gi >= 55: gi_color = '#ffc107'
+        if final_gi >= 70: gi_color = '#dc3545'
+
+        return jsonify({
+            "gi": final_gi, 
+            "gi_color": gi_color, 
+            "ai_message": "Simulation: High fiber helps reduce glucose spikes."
+        })
+    except:
+        return jsonify({"error": "Invalid data"}), 400
+
+
+## Use this when implementing
+#@app.route('/scan/predict_gi', methods=['POST'])
+#def api_predict_gi_sim():
+#    data = request.json # Grab data from frontend table
+#    
+#    # Connect to FastAPI
+#    try:
+#        # Note: Port 8000 is where FastAPI lives
+#        response = requests.post("http://127.0.0.1:8000/analyze-food", json=data)
+#        return jsonify(response.json())
+#        
+#    except requests.exceptions.ConnectionError:
+#        return jsonify({"error": "AI Service is offline"}), 500
 
 
 

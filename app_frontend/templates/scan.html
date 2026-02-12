@@ -32,46 +32,62 @@
         </div>
 
         <div class="card meta-card">
-            <label>Food Details</label>
+            <h3 style="margin-top:0; font-size:18px; color:#333;">Meal Details</h3>
+            
             <div class="input-group">
-                <input type="text" id="food-name" placeholder="Food Name" class="std-input">
+                <label>Food Name</label>
+                <input type="text" id="food-name" class="std-input" placeholder="e.g. Banana">
             </div>
-            <div class="input-group">
-                <select id="meal-type" class="std-input">
-                    <option value="" disabled selected>Meal Type</option>
-                    <option value="breakfast">Breakfast</option>
-                    <option value="lunch">Lunch</option>
-                    <option value="dinner">Dinner</option>
-                    <option value="snack">Snack</option>
-                </select>
+            
+            <div style="display: flex; gap: 20px;">
+                
+                <div class="input-group" style="flex: 1;">
+                    <label>Meal Type</label>
+                    <select id="meal-type" class="std-input">
+                        <option value="Breakfast">Breakfast</option>
+                        <option value="Lunch">Lunch</option>
+                        <option value="Dinner">Dinner</option>
+                        <option value="Snack">Snack</option>
+                    </select>
+                </div>
+                
+                <div class="input-group" style="flex: 1;">
+                    <label>Insulin (Units)</label>
+                    <input type="number" id="insulin-input" step="0.5" placeholder="0.0" class="std-input">
+                    <div id="insulin-hint" class="hidden" style="color: #28a745; font-size: 0.85em; margin-top: 4px; font-weight: bold;">
+                    </div>
+                </div>
+
             </div>
         </div>
+
     </div>
 
     <div class="scan-right">
         
         <div class="card table-card">
-    <div class="card-header">
-        <h3>Nutrition Facts</h3>
-        <span class="badge">Editable</span>
-    </div>
-    
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th style="width: 40%;">Nutrient</th>
-                <th style="width: 30%;">Value</th>
-                <th style="width: 30%;">Unit</th> </tr>
-        </thead>
-        <tbody id="nutrient-table-body">
-            <tr class="empty-state-row">
-                <td colspan="3" style="text-align:center; padding: 40px; color: #aaa;">
-                    Upload an image to see data
-                </td>
-            </tr>
-        </tbody>
-    </table>
-    </div>
+            <div class="card-header">
+                <h3>Nutrition Facts</h3>
+                <span class="badge">Editable</span>
+            </div>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Nutrient</th>
+                        <th style="width: 30%;">Value</th>
+                        <th style="width: 30%;">Unit</th> 
+                    </tr>
+                </thead>
+                <tbody id="nutrient-table-body">
+                    <tr class="empty-state-row">
+                        <td colspan="3" style="text-align:center; padding: 40px; color: #aaa;">
+                            Upload an image to see data
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
 
         <div class="card ai-card">
             <div class="ai-header">
