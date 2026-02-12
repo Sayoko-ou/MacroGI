@@ -79,7 +79,7 @@ def api_ocr_sim():
     return jsonify(fake_ocr_data)
 
 
-@app.route('/api/predict_gi', methods=['POST'])
+@app.route('/scan/predict_gi', methods=['POST'])
 def api_predict_gi_sim():
     data = request.json
     
@@ -135,7 +135,7 @@ def api_predict_gi_sim():
 
 
 
-@app.route('/api/save_entry', methods=['POST'])
+@app.route('/scan/save_entry', methods=['POST'])
 def api_save_entry_sim():
     """Simulates saving the final validated entry to DB"""
     time.sleep(0.5)

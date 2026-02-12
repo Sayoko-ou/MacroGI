@@ -3,7 +3,7 @@ import joblib
 import pandas as pd
 import os
 
-MODEL_PATH = os.path.join("models", "gi_model.pkl")
+MODEL_PATH = os.path.join("models", "best_random_forest_model.pkl")
 
 # 1. Try to load model
 regressor = None

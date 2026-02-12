@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MacroGI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-content">
+            <a href="/" class="logo">MacroGI</a>
+            <div class="nav-links">
+                <a href="/" class="nav-item active">Home</a>
+                <a href="/scan" class="nav-item">Scanner</a>
+                <a href="#" class="nav-item">Dashboard</a>
+                <a href="#" class="nav-item">Analytics</a>
+                <a href="#" class="nav-item">Profile</a>
+            </div>
+        </div>
+    </nav>
+
+    {% block content %}
+    {% endblock %}
+
+
+<button id="chat-toggle" onclick="toggleChat()" class="chat-fab">
+    <img src="{{ url_for('static', filename='imgs/chatbot.png') }}" style="width: 35px; height: 35px;">
+</button>
+
+<div id="chat-window" class="hidden" style="position: fixed; bottom: 90px; right: 20px; width: 320px; height: 450px; border: 1px solid #ddd; background: white; display: flex; flex-direction: column; box-shadow: 0 5px 15px rgba(0,0,0,0.2); border-radius: 10px;">
+
+    <div style="background: #3977d4; color: white; padding: 15px; border-radius: 10px 10px 0 0;">
+        <strong>MacroGI Advisor</strong>
+    </div>
+
+    <div id="chat-display" style="flex: 1; overflow-y: auto; padding: 10px; font-family: sans-serif;">
+        <div style="background: #f1f1f1; padding: 8px; border-radius: 5px; margin-bottom: 10px; font-size: 0.9em;">
+            Hi! I'm your MacroGI assistant. Ask me anything about dietary management!
+        </div>
+    </div>
+
+    <div style="border-top: 1px solid #eee; padding: 10px; display: flex;">
+        <input type="text" id="user-input" placeholder="Type a message..." style="flex: 1; border: 1px solid #ccc; border-radius: 5px; padding: 5px;">
+        <button onclick="mockSendMessage()" style="margin-left: 5px; cursor: pointer;">Send</button>
+    </div>
+</div>
+
+
+<script src="{{ url_for('static', filename='chatbot.js') }}"></script>
+
+</body>
+</html>
