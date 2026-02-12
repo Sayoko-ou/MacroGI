@@ -5,24 +5,22 @@ import requests
 import time
 import os
 
-# Safe import chatbot
-# Cannot launch server without it
+
+
 bot = None
 try:
-    # Try importing your teammate's code
     from app_backend.modules.chatbot import MacroGIBot
     # If this succeeds, we create the real bot
     bot = MacroGIBot()
     print("✅ Real AI Chatbot Connected")
 
 except Exception as e:
-    # If it fails (Missing Key, etc.), we print error and use a Dummy
     print(f"⚠️ Chatbot Error: {e}")
     print("ℹ️ Switching to Mock Chatbot (Safe Mode)")
 
     class MockBot:
         def get_advice(self, user_text):
-            return "System: I am currently offline because the API Key is missing. Please ask JingEn to check the .env file."
+            return "System: I am currently offline because the API Key is missing. Please ask Jing En to send the .env file."
     
     bot = MockBot()
 
