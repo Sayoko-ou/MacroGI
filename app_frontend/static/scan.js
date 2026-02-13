@@ -101,12 +101,16 @@ document.addEventListener('DOMContentLoaded', () => {
         nutrientTableBody.innerHTML = '';
         const nutrients = data.nutrients || {};
         
+        // Build the table ONLY with what the AI found
         VALID_NUTRIENTS.forEach(name => {
-            const val = nutrients[name] || 0;
-            let unit = 'g';
-            if (name === 'Calories') unit = 'kcal';
-            if (name === 'Sodium') unit = 'mg';
-            nutrientTableBody.innerHTML += createRow(name, val, unit, false);
+            const val = nutrients[name];
+            // Only show row if AI found a value > 0
+            if (val && val > 0) {
+                let unit = 'g';
+                if (name === 'Calories') unit = 'kcal';
+                if (name === 'Sodium') unit = 'mg';
+                nutrientTableBody.innerHTML += createRow(name, val, unit, false);
+            }
         });
 
         attachTableListeners();
@@ -218,50 +222,60 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Save Logic (THE CORRECT ONE) ---
 
     if(saveEntryBtn) saveEntryBtn.addEventListener('click', async () => {
-        const nutrientData = {};
-        
-        // 1. Scrape the Dynamic Table (Correct)
+        // 1. Initialize EVERYTHING to 0 based on your database schema
+        const payload = {
+            foodname: foodNameInput.value,
+            mealtype: mealTypeSelect.value,
+            insulin: parseFloat(document.getElementById('insulin-input').value) || 0,
+            calories: 0, 
+            carbs: 0,
+            protein: 0,
+            fat: 0,
+            sodium: 0,
+            fiber: 0,
+            gi: parseFloat(giValueDisplay.textContent) || 0,
+            gl: parseFloat(glValueDisplay.textContent) || 0
+        };
+
+        // 2. Scrape the table and overwrite the zeros with real data
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
             const sel = row.querySelector('.nutrient-name-select');
             const lab = row.querySelector('td strong');
             let name = sel ? sel.value : (lab ? lab.innerText : "");
             
-            // Map "Calories" -> "calories", "Total Fat" -> "fat", etc.
-            const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
-            nutrientData[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
+            // Match the keys in your payload
+            const keyMap = {
+                "Calories": "calories",
+                "Protein": "protein",
+                "Total Fat": "fat",
+                "Carbohydrate": "carbs",
+                "Fiber": "fiber",
+                "Sodium": "sodium"
+            };
+
+            const dbKey = keyMap[name];
+            if (dbKey) {
+                payload[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
+            }
         });
 
-        // 2. Build Payload matching app.py schema
-        const payload = {
-            foodname: foodNameInput.value,
-            mealtype: mealTypeSelect.value,
-            insulin: parseFloat(document.getElementById('insulin-input').value) || 0,
-            calories: nutrientData.calories || 0, 
-            carbs: nutrientData.carbs || 0,
-            protein: nutrientData.protein || 0,
-            fat: nutrientData.fat || 0,
-            sodium: nutrientData.sodium || 0,
-            fiber: nutrientData.fiber || 0,
-            gi: parseFloat(document.getElementById('gi').textContent) || 0,
-            gl: parseFloat(document.getElementById('gl').textContent) || 0
-        };
-
+        // 3. Send the complete payload (with zeros for missing items)
         try {
             const res = await fetch('/scan/save_entry', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
             const result = await res.json();
             
             if (result.status === "success") {
-                alert("Success: " + result.message);
+                alert("Entry Saved Successfully!");
                 window.location.href = "/";
             } else {
                 alert("Error: " + result.error);
             }
         } catch (e) { 
-            console.error("Full Error:", e); // This prints the technical error to the Console
-            alert("Error saving: " + e.message); 
+            alert("Network Error: " + e.message); 
         }
     });
 

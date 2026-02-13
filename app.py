@@ -220,8 +220,8 @@ def api_ocr_sim():
         # FALLBACK: Using Calories
         return jsonify({
             "nutrients": {
-                "Calories": 250, "Carbohydrate": 32.5, "Fiber": 4.5, 
-                "Protein": 8.0, "Total Fat": 10.2, "Sodium": 150
+                "Calories": 999, "Carbohydrate": 999, "Fiber": 999, 
+                "Protein": 999, "Total Fat": 999, "Sodium": 999
             },
             "suggested_name": "Simulation (Offline)"
         })

@@ -4,6 +4,7 @@ import re
 import base64
 from collections import Counter
 from rapidocr_onnxruntime import RapidOCR
+from deep_translator import GoogleTranslator 
 import os
 
 # --- MODEL LOADING ---
@@ -16,6 +17,7 @@ except ImportError:
 
 ocr = RapidOCR()
 table_model = None
+translator = GoogleTranslator(source='auto', target='en')
 
 def load_models(model_path="models/table_classifier.keras"):
     global table_model
@@ -107,19 +109,24 @@ def parse_value(text):
 
 def is_physically_possible(nutrient, val, unit, text):
     """Sanity checks (e.g. Sodium can't be 100g)"""
-    if len(text) > 10 or unit == "%": return False
+    # If the text is way too long, it's probably a sentence, not a table value
+    if len(text) > 15 or unit == "%": return False
     
     if nutrient == "Sodium":
-        if unit not in ['mg', 'g']: return False
-        if unit == 'g' and val > 10: return False # 10g sodium is deadly
+        # FIXED: Allow empty units ("") because OCR often misses "mg"
+        if unit != "" and unit not in ['mg', 'g']: return False
+        
+        # If unit is 'g', value shouldn't be huge (e.g., 500g salt is impossible)
+        if unit == 'g' and val > 10: return False 
         return True
     
     if nutrient == "Energy":
         if unit in ['kcal', 'kj', 'cal', 'cals']: return True
-        if unit == "" and val > 10: return True
+        # If no unit, assume kcal if the number is significant
+        if unit == "" and val > 5: return True
         return False
     
-    # Default grams check
+    # Default grams check for Protein, Fat, Carbs, Fiber
     if unit in ['kcal', 'kj', 'cal']: return False
     if unit in ['g', 'mg', 'mcg', '']: return True
     
@@ -129,6 +136,17 @@ def is_physically_possible(nutrient, val, unit, text):
     # Encode to Base64 string for HTML display
     _, buffer = cv2.imencode('.jpg', viz)
     return base64.b64encode(buffer).decode('utf-8')
+
+def translate_if_foreign(text):
+    if not all(ord(c) < 128 for c in text):
+        try: return translator.translate(text).lower()
+        except: return text.lower()
+    return text.lower()
+
+def convert_salt_to_sodium(extracted):
+    salt = extracted.pop("Salt_tmp", 0) 
+    if salt > 0 and extracted.get("Sodium", 0) == 0:
+        extracted["Sodium"] = round((salt / 2.5) * 1000, 2)
 
 # ==============================================================================
 # 3. DOMINANT COLUMN CLUSTERING (RESTORED LOGIC)
@@ -219,9 +237,9 @@ def extract_nutrients(image_bytes):
         return {"error": "No text detected"}
 
     # 4. Search logic
-    # SYNCED KEYS: These now match VALID_NUTRIENTS in scan.js exactly
+    # Initializing with 0s to ensure the frontend always gets the expected keys
     extracted = {
-        "Energy": 0, "Protein": 0, "Total Fat": 0, 
+        "Calories": 0, "Protein": 0, "Total Fat": 0, 
         "Carbohydrate": 0, "Fiber": 0, "Sodium": 0, "Salt_tmp": 0 
     }
     used_indices = set()
@@ -229,56 +247,63 @@ def extract_nutrients(image_bytes):
 
     # Map standardized keys to possible OCR text variations
     target_nutrients = {
-        "Energy": ["energy", "kcal", "calories"],
+        "Calories": ["energy", "kcal", "calories"],
         "Protein": ["protein"],
         "Total Fat": ["total fat", "fat"],
         "Carbohydrate": ["carbohydrate", "carb", "carbs"],
-        "Fibre": ["fibre", "fiber", "dietary fiber"],
-        "Sodium": ["sodium", "salt"],
+        "Fiber": ["fibre", "fiber", "dietary fiber"],
+        "Sodium": ["sodium"],
         "Salt_tmp": ["salt"]
     }
 
     # Pass 1: Find Labels and their Candidates
+    # CRITICAL: We loop through standard nutrients first to avoid grabbing multiple labels for one key
     for std_key, aliases in target_nutrients.items():
         for i, item in enumerate(result):
             if i in used_indices: continue
-            text, box = item[1].lower(), item[0]
+            
+            # Translate text to handle foreign nutrition labels
+            raw_text = item[1]
+            translated_text = translate_if_foreign(raw_text)
+            box = item[0]
 
-            if any(alias in text for alias in aliases):
-                # Only keep short labels (avoids "Ingredients: Wheat flour...")
-                if len(text) > 30: continue 
+            if any(alias in translated_text for alias in aliases):
+                # Ignore long strings that might be paragraphs/ingredients
+                if len(translated_text) > 30: continue 
 
                 # Case A: Value is inside the same text box (e.g., "Protein 5g")
-                clean_text = text
+                clean_text = translated_text
                 for a in aliases: clean_text = clean_text.replace(a, "")
                 v_num, v_unit, v_raw = parse_value(clean_text)
                 
-                if v_num is not None and is_physically_possible(std_key, v_num, v_unit, clean_text):
+                # Check for "Calories" logic in sanity check
+                # (Passing std_key as "Energy" to internal validator for back-compat)
+                val_key = "Energy" if std_key == "Calories" else std_key
+                
+                if v_num is not None and is_physically_possible(val_key, v_num, v_unit, clean_text):
                     extracted[std_key] = v_num
                     used_indices.add(i)
-                    break # Found it inline, stop searching for this key
+                    break # Success! Move to the next nutrient in target_nutrients
 
                 # Case B: Value is in a separate box (needs alignment)
-                cands = find_all_candidates(i, box, result, used_indices, std_key)
+                cands = find_all_candidates(i, box, result, used_indices, val_key)
                 if cands:
                     candidates_pool[std_key] = cands
                     used_indices.add(i)
-                    break 
+                    break # Success! Move to the next nutrient
 
     # Pass 2: Solve Alignment
     resolved = solve_column_clustering(candidates_pool)
     for k, cand in resolved.items():
         extracted[k] = cand['val']
-        # IMPORTANT: Add the value's index to used_indices for coloring
-        if 'idx' in cand: used_indices.add(cand['idx'])
+        if 'idx' in cand: 
+            used_indices.add(cand['idx'])
 
-
-    extracted = convert_salt_to_sodium(extracted)
+    # 5. Salt to Sodium Conversion
+    convert_salt_to_sodium(extracted)
 
     # 6. DRAW VISUALS
     annotated_b64 = draw_visuals(target_img, result, used_indices)
-
-
 
     return {
         "nutrients": extracted,
