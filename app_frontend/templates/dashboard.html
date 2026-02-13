@@ -9,23 +9,62 @@
         <a href="#" class="nav-tab">PERSON ANALYTICS</a>
     </div>
 
-    <!-- View Selector -->
-    <div class="view-selector">
-        {% if view == 'overall' or not view %}
-        <button class="view-btn active" data-view="overall">Overall</button>
-        {% else %}
-        <button class="view-btn" data-view="overall">Overall</button>
-        {% endif %}
-        {% if view == 'weekly' %}
-        <button class="view-btn active" data-view="weekly">Weekly</button>
-        {% else %}
-        <button class="view-btn" data-view="weekly">Weekly</button>
-        {% endif %}
-        {% if view == 'daily' %}
-        <button class="view-btn active" data-view="daily">Daily</button>
-        {% else %}
-        <button class="view-btn" data-view="daily">Daily</button>
-        {% endif %}
+    <!-- Dashboard Header: View Selector (Left) and Date Selectors (Right) -->
+    <div class="dashboard-header">
+        <!-- View Selector on Left -->
+        <div class="view-selector">
+            {% if view == 'overall' or not view %}
+            <button class="view-btn active" data-view="overall">Overall</button>
+            {% else %}
+            <button class="view-btn" data-view="overall">Overall</button>
+            {% endif %}
+            {% if view == 'weekly' %}
+            <button class="view-btn active" data-view="weekly">Weekly</button>
+            {% else %}
+            <button class="view-btn" data-view="weekly">Weekly</button>
+            {% endif %}
+            {% if view == 'daily' %}
+            <button class="view-btn active" data-view="daily">Daily</button>
+            {% else %}
+            <button class="view-btn" data-view="daily">Daily</button>
+            {% endif %}
+        </div>
+
+        <!-- Date Selectors on Right (shown based on view) -->
+        <div class="date-selector-container">
+            <!-- Weekly Date Selector -->
+            <div class="week-selector-wrapper {% if view != 'weekly' %}hidden{% endif %}">
+                <button class="nav-arrow" onclick="navigatePeriod(-1)">←</button>
+                <div class="week-selector">
+                    {% for week in weeks %}
+                    <button class="week-btn {{ 'active' if week.is_selected else '' }}" 
+                            data-week="{{ week.week_num }}" 
+                            data-start="{{ week.start_date }}" 
+                            data-end="{{ week.end_date }}">
+                        W{{ week.week_num }}<br>
+                        <small>{{ week.start_date }} - {{ week.end_date }}</small>
+                    </button>
+                    {% endfor %}
+                </div>
+                <button class="nav-arrow" onclick="navigatePeriod(1)">→</button>
+            </div>
+
+            <!-- Daily Date Selector -->
+            <div class="day-selector-wrapper {% if view != 'daily' %}hidden{% endif %}">
+                <button class="nav-arrow" onclick="navigatePeriod(-1)">←</button>
+                <div class="day-selector">
+                    {% for day in days %}
+                    <button class="day-btn {{ 'active' if day.is_selected else '' }}" 
+                            data-day="{{ day.day_name }}" 
+                            data-date="{{ day.date_str }}">
+                        {{ day.day_name }}<br>
+                        <small>{{ day.day_num }}</small>
+                    </button>
+                    {% endfor %}
+                </div>
+                <button class="nav-arrow" onclick="navigatePeriod(1)">→</button>
+            </div>
+        </div>
     </div>
 
     <!-- Overall Dashboard View -->
@@ -38,7 +77,7 @@
                     <canvas id="overall-line-chart"></canvas>
                 </div>
                 <div class="chart-card">
-                    <h3>Categories Percentage By GL</h3>
+                    <h3>Meal Type Percentage By GL</h3>
                     <canvas id="overall-pie-chart"></canvas>
                 </div>
             </div>
@@ -62,22 +101,6 @@
 
     <!-- Weekly Dashboard View -->
     <div id="weekly-view" class="dashboard-view {% if view == 'weekly' %}active{% endif %}">
-        <div class="week-selector-wrapper">
-            <button class="nav-arrow" onclick="navigateWeek(-1)">←</button>
-            <div class="week-selector">
-                {% for week in weeks %}
-                <button class="week-btn {{ 'active' if week.is_selected else '' }}" 
-                        data-week="{{ week.week_num }}" 
-                        data-start="{{ week.start_date }}" 
-                        data-end="{{ week.end_date }}">
-                    W{{ week.week_num }}<br>
-                    <small>{{ week.start_date }} - {{ week.end_date }}</small>
-                </button>
-                {% endfor %}
-            </div>
-            <button class="nav-arrow" onclick="navigateWeek(1)">→</button>
-        </div>
-
         <div class="dashboard-container">
 
         <div class="summary-cards">
@@ -116,21 +139,6 @@
 
     <!-- Daily Dashboard View -->
     <div id="daily-view" class="dashboard-view {% if view == 'daily' %}active{% endif %}">
-        <div class="day-selector-wrapper">
-            <button class="nav-arrow" onclick="navigateDay(-1)">←</button>
-            <div class="day-selector">
-                {% for day in days %}
-                <button class="day-btn {{ 'active' if day.is_selected else '' }}" 
-                        data-day="{{ day.day_name }}" 
-                        data-date="{{ day.date_str }}">
-                    {{ day.day_name }}<br>
-                    <small>{{ day.day_num }}</small>
-                </button>
-                {% endfor %}
-            </div>
-            <button class="nav-arrow" onclick="navigateDay(1)">→</button>
-        </div>
-
         <div class="dashboard-container">
 
         <div class="summary-cards">
@@ -170,12 +178,6 @@
                     <canvas id="daily-line-chart"></canvas>
                 </div>
             </div>
-        </div>
-
-        <div class="comments-section">
-            <h3>Comments</h3>
-            <textarea id="daily-comment" class="comment-box" placeholder="Add your thoughts for today...">{{ daily_data.comment }}</textarea>
-            <button class="save-comment-btn" onclick="saveComment()">Save Comment</button>
         </div>
         </div>
     </div>

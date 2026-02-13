@@ -215,8 +215,7 @@ def dashboard_page():
             {'time': '09:00', 'food': 'Bread', 'gl': 100},
             {'time': '12:00', 'food': 'McDonalds', 'gl': 400},
             {'time': '19:00', 'food': 'Snacks', 'gl': 100}
-        ],
-        'comment': 'Today I felt sad so i went to eat smth.'
+        ]
     }
     
     return render_template('dashboard.html',
@@ -374,23 +373,6 @@ def api_weekly_data():
         'carbohydrates': random.randint(800, 1200),
         'calories': random.randint(8000, 12000)
     })
-
-@app.route('/api/dashboard/save-comment', methods=['POST'])
-def api_save_comment():
-    if not is_logged_in(): return jsonify({"error": "Unauthorized"}), 401
-    
-    data = request.json
-    date = data.get('date')
-    comment = data.get('comment', '')
-    
-    # In a real app, save to database
-    print(f"Comment saved for {date}: {comment}")
-    
-    return jsonify({
-        "status": "success",
-        "message": "Comment saved"
-    })
-
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

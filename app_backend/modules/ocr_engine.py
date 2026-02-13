@@ -281,6 +281,5 @@ def extract_nutrients(image_bytes):
         "table_detected": found_table,
         "annotated_image": annotated_b64
     }
-
 # Initialize models when this module is imported
 load_models()

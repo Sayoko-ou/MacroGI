@@ -8,9 +8,27 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeWeekSelector();
     initializeDaySelector();
     
+    // Show/hide date selectors based on initial view
+    const activeView = document.querySelector('.dashboard-view.active');
+    if (activeView) {
+        const viewId = activeView.id;
+        const weekSelector = document.querySelector('.week-selector-wrapper');
+        const daySelector = document.querySelector('.day-selector-wrapper');
+        
+        if (viewId === 'weekly-view') {
+            if (weekSelector) weekSelector.classList.remove('hidden');
+            if (daySelector) daySelector.classList.add('hidden');
+        } else if (viewId === 'daily-view') {
+            if (weekSelector) weekSelector.classList.add('hidden');
+            if (daySelector) daySelector.classList.remove('hidden');
+        } else {
+            if (weekSelector) weekSelector.classList.add('hidden');
+            if (daySelector) daySelector.classList.add('hidden');
+        }
+    }
+    
     // Initialize charts for the active view
     setTimeout(() => {
-        const activeView = document.querySelector('.dashboard-view.active');
         if (activeView) {
             const viewId = activeView.id;
             if (viewId === 'overall-view') {
@@ -40,6 +58,21 @@ function initializeViewSwitching() {
             // Update views
             views.forEach(v => v.classList.remove('active'));
             document.getElementById(targetView + '-view').classList.add('active');
+            
+            // Show/hide date selectors based on view
+            const weekSelector = document.querySelector('.week-selector-wrapper');
+            const daySelector = document.querySelector('.day-selector-wrapper');
+            
+            if (targetView === 'weekly') {
+                if (weekSelector) weekSelector.classList.remove('hidden');
+                if (daySelector) daySelector.classList.add('hidden');
+            } else if (targetView === 'daily') {
+                if (weekSelector) weekSelector.classList.add('hidden');
+                if (daySelector) daySelector.classList.remove('hidden');
+            } else {
+                if (weekSelector) weekSelector.classList.add('hidden');
+                if (daySelector) daySelector.classList.add('hidden');
+            }
             
             // Reinitialize charts for the active view
             setTimeout(() => {
@@ -87,33 +120,39 @@ function initializeDaySelector() {
     });
 }
 
-// Navigate Week
-function navigateWeek(direction) {
-    const activeBtn = document.querySelector('.week-btn.active');
-    if (!activeBtn) return;
+// Unified Navigation for Weekly and Daily
+function navigatePeriod(direction) {
+    const activeView = document.querySelector('.dashboard-view.active');
+    if (!activeView) return;
     
-    const weekNum = parseInt(activeBtn.getAttribute('data-week'));
-    const newWeekNum = weekNum + direction;
+    const viewId = activeView.id;
     
-    if (newWeekNum < 1 || newWeekNum > 7) return;
-    
-    const targetBtn = document.querySelector(`.week-btn[data-week="${newWeekNum}"]`);
-    if (targetBtn) {
-        targetBtn.click();
+    if (viewId === 'weekly-view') {
+        // Navigate weeks
+        const activeBtn = document.querySelector('.week-btn.active');
+        if (!activeBtn) return;
+        
+        const weekNum = parseInt(activeBtn.getAttribute('data-week'));
+        const newWeekNum = weekNum + direction;
+        
+        if (newWeekNum < 1 || newWeekNum > 7) return;
+        
+        const targetBtn = document.querySelector(`.week-btn[data-week="${newWeekNum}"]`);
+        if (targetBtn) {
+            targetBtn.click();
+        }
+    } else if (viewId === 'daily-view') {
+        // Navigate days
+        const activeBtn = document.querySelector('.day-btn.active');
+        if (!activeBtn) return;
+        
+        const currentDate = activeBtn.getAttribute('data-date');
+        const date = new Date(currentDate);
+        date.setDate(date.getDate() + direction);
+        
+        const newDateStr = date.toISOString().split('T')[0];
+        window.location.href = '/dashboard?view=daily&date=' + newDateStr;
     }
-}
-
-// Navigate Day
-function navigateDay(direction) {
-    const activeBtn = document.querySelector('.day-btn.active');
-    if (!activeBtn) return;
-    
-    const currentDate = activeBtn.getAttribute('data-date');
-    const date = new Date(currentDate);
-    date.setDate(date.getDate() + direction);
-    
-    const newDateStr = date.toISOString().split('T')[0];
-    window.location.href = '/dashboard?view=daily&date=' + newDateStr;
 }
 
 // Load Weekly Data
@@ -205,16 +244,16 @@ function renderOverallCharts() {
         });
     }
 
-    // Pie Chart - Categories
+    // Pie Chart - Meal Types
     const pieCtx = document.getElementById('overall-pie-chart');
     if (pieCtx) {
         charts.overallPie = new Chart(pieCtx, {
             type: 'pie',
             data: {
-                labels: ['Meals', 'Drinks', 'Snacks'],
+                labels: ['Breakfast', 'Lunch', 'Dinner', 'Snack'],
                 datasets: [{
-                    data: [62.5, 17.5, 20],
-                    backgroundColor: ['#5B9BD5', '#70AD47', '#FFC000']
+                    data: [35, 30, 25, 10],
+                    backgroundColor: ['#5B9BD5', '#70AD47', '#FFC000', '#ED7D31']
                 }]
             },
             options: {
@@ -380,16 +419,16 @@ function renderWeeklyCharts(data) {
         });
     }
 
-    // Pie Chart
+    // Pie Chart - Meal Types
     const pieCtx = document.getElementById('weekly-pie-chart');
     if (pieCtx) {
         charts.weeklyPie = new Chart(pieCtx, {
             type: 'pie',
             data: {
-                labels: ['Meals', 'Drinks', 'Snacks'],
+                labels: ['Breakfast', 'Lunch', 'Dinner', 'Snack'],
                 datasets: [{
-                    data: [62.5, 17.5, 20],
-                    backgroundColor: ['#5B9BD5', '#70AD47', '#FFC000']
+                    data: [35, 30, 25, 10],
+                    backgroundColor: ['#5B9BD5', '#70AD47', '#FFC000', '#ED7D31']
                 }]
             },
             options: {
@@ -503,32 +542,4 @@ function renderDailyCharts() {
             }
         });
     }
-}
-
-// Save Comment
-function saveComment() {
-    const comment = document.getElementById('daily-comment').value;
-    const urlParams = new URLSearchParams(window.location.search);
-    const date = urlParams.get('date') || new Date().toISOString().split('T')[0];
-
-    fetch('/api/dashboard/save-comment', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            date: date,
-            comment: comment
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            alert('Comment saved!');
-        }
-    })
-    .catch(error => {
-        console.error('Error saving comment:', error);
-        alert('Failed to save comment');
-    });
 }
