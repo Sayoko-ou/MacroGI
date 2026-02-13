@@ -126,11 +126,9 @@ def is_physically_possible(nutrient, val, unit, text):
     return False
 
 
-def convert_salt_to_sodium(extracted):
-    salt = extracted.pop("Salt_tmp", 0) 
-    if salt > 0 and extracted.get("Sodium", 0) == 0:
-        extracted["Sodium"] = round((salt / 2.5) * 1000, 2)
-    return extracted
+    # Encode to Base64 string for HTML display
+    _, buffer = cv2.imencode('.jpg', viz)
+    return base64.b64encode(buffer).decode('utf-8')
 
 # ==============================================================================
 # 3. DOMINANT COLUMN CLUSTERING (RESTORED LOGIC)
@@ -231,7 +229,7 @@ def extract_nutrients(image_bytes):
 
     # Map standardized keys to possible OCR text variations
     target_nutrients = {
-        "Calories": ["energy", "kcal", "calories"],
+        "Energy": ["energy", "kcal", "calories"],
         "Protein": ["protein"],
         "Total Fat": ["total fat", "fat"],
         "Carbohydrate": ["carbohydrate", "carb", "carbs"],
