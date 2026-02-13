@@ -13,33 +13,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const nutrientTableBody = document.getElementById('nutrient-table-body');
     const predictGiBtn = document.getElementById('predict-gi-btn');
     const giResultArea = document.getElementById('gi-result-area');
-    const giValueDisplay = document.getElementById('gi-value-display');
-    const glValueDisplay = document.getElementById('gl-value-display'); // New GL Element
+    // UPDATE: New IDs matching HTML
+    const giValueDisplay = document.getElementById('gi');
+    const glValueDisplay = document.getElementById('gl');
     const saveEntryBtn = document.getElementById('save-entry-btn');
     const addRowBtn = document.getElementById('add-row-btn');
     const retakePrompt = document.getElementById('retake-prompt');
 
-    // Configuration: Sugar is excluded as requested
-    const VALID_NUTRIENTS = ["Energy", "Protein", "Total Fat", "Carbohydrate", "Fiber", "Sodium"];
+    // UPDATE: Changed 'Energy' to 'Calories', Sugar excluded
+    const VALID_NUTRIENTS = ["Calories", "Protein", "Total Fat", "Carbohydrate", "Fiber", "Sodium"];
     let selectedFile = null;
     let giPredicted = false;
 
     // --- Validation Helpers ---
 
-    /**
-     * Checks if the table contains any actual nutrient data (> 0).
-     * Prevents running AI on empty rows.
-     */
     function hasNutrientData() {
         const values = document.querySelectorAll('.nutrient-val');
         if (values.length === 0) return false;
         return Array.from(values).some(input => parseFloat(input.value) > 0);
     }
 
-    /**
-     * Re-scans the table to find which nutrients are NOT currently displayed.
-     * Allows deleted nutrients to be added back to the dropdown.
-     */
     function getAvailableNutrients() {
         const currentLabels = [];
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
@@ -109,9 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const nutrients = data.nutrients || {};
         
         VALID_NUTRIENTS.forEach(name => {
-            // Keys match ocr_engine.py exactly
             const val = nutrients[name] || 0;
-            let unit = (name === 'Energy') ? 'kcal' : (name === 'Sodium' ? 'mg' : 'g');
+            // UPDATE: Unit check for Calories
+            let unit = (name === 'Calories') ? 'kcal' : (name === 'Sodium' ? 'mg' : 'g');
             nutrientTableBody.innerHTML += createRow(name, val, unit, false);
         });
 
@@ -128,7 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${available.map(n => `<option value="${n}">${n}</option>`).join('')}
             </select>`;
         }
-        // min="0" ensures no negative values
         return `<tr>
             <td>${labelHtml}</td>
             <td><input type="number" min="0" step="0.1" class="table-input nutrient-val" value="${value||0}"></td>
@@ -152,7 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function attachTableListeners() {
         document.querySelectorAll('.nutrient-val, .nutrient-name-select').forEach(input => {
             input.oninput = (e) => {
-                // Negative value handling
                 if (e.target.type === 'number' && parseFloat(e.target.value) < 0) {
                     e.target.value = 0;
                 }
@@ -185,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lab = row.querySelector('td strong');
             let name = sel ? sel.value : (lab ? lab.innerText : "");
             if (name) {
-                // Standardize keys for backend models
+                // UPDATE: name is now "Calories", mapped to "calories" (lowercase) for DB/API
                 const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
                 nutrientData[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
             }
@@ -203,11 +194,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (res.ok) {
-                // Display GI Result
+                // UPDATE: Using new IDs 'gi' and 'gl'
                 giValueDisplay.textContent = data.gi;
                 giValueDisplay.style.color = data.gi_color;
-
-                // Display GL Result
                 if (glValueDisplay) glValueDisplay.textContent = data.gl;
 
                 document.querySelector('.ai-message').innerHTML = `💡 ${data.ai_message || 'Balanced meal.'}`;
@@ -234,19 +223,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const sel = row.querySelector('.nutrient-name-select');
             const lab = row.querySelector('td strong');
             let name = sel ? sel.value : (lab ? lab.innerText : "");
+            // UPDATE: Handles "Calories" -> "calories"
             const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
             nutrientData[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
         });
 
+        // UPDATE: Payload now includes calories, gi, and gl
         const payload = {
             foodname: foodNameInput.value,
             mealtype: mealTypeSelect.value,
             insulin: parseFloat(document.getElementById('insulin-input').value) || 0,
+            calories: nutrientData.calories || 0, 
             carbs: nutrientData.carbs || 0,
             protein: nutrientData.protein || 0,
             fat: nutrientData.fat || 0,
             sodium: nutrientData.sodium || 0,
-            fiber: nutrientData.fiber || 0
+            fiber: nutrientData.fiber || 0,
+            gi: parseFloat(document.getElementById('gi').textContent) || 0,
+            gl: parseFloat(document.getElementById('gl').textContent) || 0
         };
 
         try {
@@ -264,10 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nameFilled = foodNameInput.value.trim() !== '';
         const dataPresent = hasNutrientData(); 
         
-        // Predict button only needs nutrient data
         predictGiBtn.disabled = !dataPresent;
-
-        // Save button requires name and prediction
         saveEntryBtn.disabled = !(nameFilled && giPredicted);
         saveEntryBtn.textContent = saveEntryBtn.disabled ? "Complete all fields to save" : "Save Entry";
     }

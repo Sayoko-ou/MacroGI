@@ -47,15 +47,16 @@ def extract_nutrients(image_bytes):
     result, _ = ocr(ocr_input)
     if not result: return {"error": "No text detected", "success": False}
 
-    # SYNCED KEYS: These now match VALID_NUTRIENTS in scan.js exactly
+    # UPDATE: Changed 'Energy' to 'Calories'
     extracted = {
-        "Energy": 0, "Protein": 0, "Total Fat": 0, 
+        "Calories": 0, "Protein": 0, "Total Fat": 0, 
         "Carbohydrate": 0, "Fiber": 0, "Sodium": 0, "Salt_tmp": 0 
     }
     
     used_indices = set()
     target_nutrients = {
-        "Energy": ["energy", "kcal", "calories"],
+        # UPDATE: Mapped aliases to 'Calories'
+        "Calories": ["energy", "kcal", "calories"],
         "Protein": ["protein"],
         "Total Fat": ["total fat", "fat"],
         "Carbohydrate": ["carbohydrate", "carb", "carbs"],

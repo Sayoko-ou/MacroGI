@@ -4,8 +4,9 @@ import random
 import requests
 import time
 import os
+from dotenv import load_dotenv
 
-
+load_dotenv()
 
 bot = None
 try:
@@ -30,21 +31,6 @@ app = Flask(__name__,
             static_folder="app_frontend/static")
 app.secret_key = os.urandom(24)
 
-# --- 1. UPDATED USER DATABASE (With IDs) ---
-# Format: Email is key -> Value is dict with details
-USERS = {
-    "alex@macrogi.com": {
-        "password": "password123",
-        "name": "Alex",
-        "id": "1" 
-    },
-    "judge@school.com": {
-        "password": "admin",
-        "name": "Judge",
-        "id": "0"
-    }
-}
-
 # --- LOGIN HELPER ---
 def is_logged_in():
     return 'user_id' in session
@@ -55,35 +41,57 @@ def get_greeting():
     h = datetime.now().hour
     return "Good Morning" if 5 <= h < 12 else "Good Afternoon" if 12 <= h < 18 else "Good Evening"
 
-# --- PAGE ROUTES ---
+# --- DATABASE CONFIG (Kept Teammate's Logic) ---
+CLOUD_DB_URL = os.getenv("CLOUD_DB_URL")
+DB_KEY = os.getenv("DB_KEY")
+
+database_headers = {
+    "apikey": DB_KEY,
+    "Authorization": "Bearer " + str(DB_KEY),
+    "Content-Type": "application/json",
+}
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
-    # If already logged in, skip login page
     if is_logged_in():
         return redirect(url_for('home'))
 
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-        
-        # 1. Check if email exists in our dict
-        if email in USERS:
-            user_obj = USERS[email]
-            
-            # 2. Check password match
+
+        try:
+            # Teammate's Cloud DB Query
+            query_url = f"{CLOUD_DB_URL}/rest/v1/users_by_email?email=eq.{email}&limit=1"
+
+            response = requests.get(query_url, headers=database_headers)
+            response.raise_for_status()
+
+            users = response.json()
+
+        except Exception as e:
+            print("LOGIN ERROR:", e)
+            flash(f"Database error: {e}")
+            return render_template('login.html')
+
+
+        # Check if user exists
+        if users:
+            user_obj = users[0]
+
+            # Check password
             if user_obj['password'] == password:
-                # 3. Save User ID and Name to Cookie
-                session['user_id'] = user_obj['id']
+                session['user_id'] = str(user_obj['id'])
                 session['user_name'] = user_obj['name']
-                session['user_email'] = email
+                session['user_email'] = user_obj['email']
                 return redirect(url_for('home'))
             else:
                 flash("Incorrect password")
         else:
             flash("User not found")
-            
+
     return render_template('login.html')
+
 
 @app.route('/logout')
 def logout():
@@ -98,22 +106,17 @@ def home():
     greeting = get_greeting()
     
     # --- 1. GET DATE FROM URL ---
-    # Check if user clicked a specific date (e.g. /?date=2026-02-10)
     date_str = request.args.get('date')
     
     if date_str:
         try:
-            # Convert string "2026-02-10" -> Date Object
             selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
-            # If someone messes with URL, fallback to today
             selected_date = datetime.now().date()
     else:
-        # Default to today
         selected_date = datetime.now().date()
 
     # --- 2. GENERATE CALENDAR STRIP ---
-    # We always show the *last 7 days* ending on today
     today = datetime.now().date() 
     dates = []
     
@@ -123,13 +126,10 @@ def home():
             'str': d.strftime('%Y-%m-%d'),
             'day_name': d.strftime('%a'),
             'day_num': d.day,
-            # Highlight if this day matches the one we selected
             'is_selected': d == selected_date 
         })
 
     # --- 3. GENERATE DATA FOR SELECTED DATE ---
-    # Use the selected date as the "Seed" so the numbers are consistent for that day
-    # (e.g. Feb 10 always shows the same numbers, Feb 9 shows different ones)
     random.seed(selected_date.toordinal())
     
     gi_val = random.randint(40, 75)
@@ -147,6 +147,7 @@ def home():
                          user=session.get('user_name'),
                          kpi=kpi_data, 
                          dates=dates)
+
 @app.route('/scan')
 def scan_page():
     if not is_logged_in(): return redirect(url_for('login_page'))
@@ -164,11 +165,7 @@ def api_ocr_sim():
     
     # 1. TRY CONNECTING TO FASTAPI 
     try:
-        # Prepare the file to send to Port 8000
-        # We need to send it as 'multipart/form-data'
         files_to_send = {'file': (file.filename, file.read(), file.mimetype)}
-        
-        # Send to the FastAPI endpoint defined in ai_service.py
         response = requests.post("http://127.0.0.1:8000/scan-food", files=files_to_send)
         
         if response.status_code == 200:
@@ -180,11 +177,11 @@ def api_ocr_sim():
     except requests.exceptions.ConnectionError:
         print("⚠️ FastAPI (OCR) is offline. Using Simulation Data.")
 
-    # 2. FALLBACK (Only runs if you forgot to start the second terminal)
+    # 2. FALLBACK (Fixed to use Calories instead of Sugar)
     fake_ocr_data = {
         "nutrients": {
-            "carbs": 32.5, "sugar": 12.0, "fiber": 4.5, 
-            "protein": 8.0, "fat": 10.2, "sodium": 150
+            "Calories": 250, "Carbohydrate": 32.5, "Fiber": 4.5, 
+            "Protein": 8.0, "Total Fat": 10.2, "Sodium": 150
         },
         "suggested_name": "Simulation (Server Offline)"
     }
@@ -197,7 +194,6 @@ def api_predict_gi_sim():
     
     # 1. TRY CONNECTING TO FASTAPI (The Real Way)
     try:
-        # Assuming FastAPI is running on Port 8000
         response = requests.post("http://127.0.0.1:8000/analyze-food", json=data, timeout=3)
         
         if response.status_code == 200:
@@ -209,13 +205,12 @@ def api_predict_gi_sim():
     except requests.exceptions.ConnectionError:
         print("⚠️ FastAPI is offline. Using Simulation Data.")
 
-    # 2. FALLBACK SIMULATION (If FastAPI is down or not implemented yet)
-    # This keeps your frontend working no matter what
+    # 2. FALLBACK SIMULATION (Fixed: No sugar dependency)
     try:
-        sugar = float(data['nutrients'].get('sugar', 0))
         fiber = float(data['nutrients'].get('fiber', 1))
         
-        base_gi = 50 + (sugar * 1.5) - (fiber * 2)
+        # Simplified formula for fallback
+        base_gi = 60 - (fiber * 2)
         final_gi = int(max(10, min(100, base_gi)))
         
         gi_color = '#28a745'
@@ -223,31 +218,14 @@ def api_predict_gi_sim():
         if final_gi >= 70: gi_color = '#dc3545'
 
         return jsonify({
-            "gi": final_gi, 
+            "gi": final_gi,
+            "gl": 12, # Fallback GL value
             "gi_color": gi_color, 
-            "ai_message": "Simulation: High fiber helps reduce glucose spikes."
+            "ai_message": "Simulation: Offline mode active."
         })
     except:
         return jsonify({"error": "Invalid data"}), 400
 
-
-## Use this when implementing
-#@app.route('/scan/predict_gi', methods=['POST'])
-#def api_predict_gi_sim():
-#    data = request.json # Grab data from frontend table
-#    
-#    # Connect to FastAPI
-#    try:
-#        # Note: Port 8000 is where FastAPI lives
-#        response = requests.post("http://127.0.0.1:8000/analyze-food", json=data)
-#        return jsonify(response.json())
-#        
-#    except requests.exceptions.ConnectionError:
-#        return jsonify({"error": "AI Service is offline"}), 500
-
-
-
-# app.py
 
 @app.route('/scan/save_entry', methods=['POST'])
 def api_save_entry_sim():
@@ -255,30 +233,34 @@ def api_save_entry_sim():
     
     data = request.json
     
-    # Inject Database Metadata
-    # Note: 'created_at' replaces 'timestamp' to match your schema
+    # 2. INJECT SERVER DATA (FIXED: Added Calories, GI, GL)
     final_entry = {
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "user_id": session['user_id'],
         "foodname": data.get('foodname'),
         "mealtype": data.get('mealtype'),
+        "calories": data.get('calories', 0), # Added
         "carbs": data.get('carbs', 0),
         "protein": data.get('protein', 0),
         "fat": data.get('fat', 0),
         "fiber": data.get('fiber', 0),
         "sodium": data.get('sodium', 0),
-        "insulin": data.get('insulin', 0)
+        "insulin": data.get('insulin', 0),
+        "gi": data.get('gi', 0),  # Added
+        "gl": data.get('gl', 0)   # Added
     }
     
-    # GI is not in your list of 10 columns, so we omit it from storage
-    print(f"DATABASE INSERT: {final_entry}") 
+    # GI is now included in the object printed/stored
+    print(f"📊 DATABASE INSERT: {final_entry}") 
+    
+    # Note: If you want to insert into your teammate's Cloud DB, 
+    # you would add the requests.post(CLOUD_DB_URL...) code here.
     
     return jsonify({
         "status": "success", 
         "message": f"Successfully saved to {final_entry['mealtype']} diary!",
         "created_at": final_entry['created_at']
     })
-
 
 
 @app.route("/advisor", methods=["POST"])
