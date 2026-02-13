@@ -1,20 +1,13 @@
-# NOTE: THIS FILE IS MEANT TO STORE ALL VARIABLES THAT WILL BE USED TO CONNECT TO CLOUD DB CLUSTER
-
-from pymongo import MongoClient
-import sys
 import os
+from supabase import create_client, Client
 from dotenv import load_dotenv
 
-load_dotenv()
+# Explicitly point to your .env.local file
+load_dotenv(dotenv_path=".env.local")
 
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("DATABASE_NAME")
+url: str = os.getenv("URL")
+key: str = os.getenv("KEY")
 
-try:
-    client = MongoClient(MONGO_URI)
-    db = client[DB_NAME]
-    user_diary = db.user_diary
+print(url,key)
 
-except Exception as e:
-    print(f"Error connecting to MongoDB: {e}")
-    sys.exit(1)
+db: Client = create_client(url, key)

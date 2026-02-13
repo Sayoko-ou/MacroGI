@@ -1,5 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
+from typing import Optional
+# Import your AI modules
 from modules.gi_predictor import predict_gi_sklearn
 from modules.genai_advisor import get_food_fact
 from modules.ocr_engine import extract_nutrients
@@ -8,11 +10,9 @@ from modules.supabase_client import save_gi_gl_endpoint
 
 app = FastAPI()
 
-# Define the data we expect from Flask
 class AnalysisRequest(BaseModel):
-    food_name: str
-    nutrients: dict # {'sugar': 12, 'fiber': 4 ...}
-
+    food_name: Optional[str] = "Unknown Food"
+    nutrients: dict 
 
 @app.post("/scan-food")
 async def scan_food(file: UploadFile = File(...)):
@@ -73,8 +73,19 @@ async def analyze_food(request: AnalysisRequest):
     
     # --- PROCESS 4: GENAI (Advisor) ---
     ai_tip = get_food_fact(request.food_name, normalized_nutrients, predicted_gi)
+@app.post("/analyze-food")
+async def analyze_food(request: AnalysisRequest):
+
+    # --- PROCESS 1: TEAGAN'S MODEL (GI) ---
+    predicted_gi, predicted_gl = predict_gi_sklearn(request.nutrients)
     
-    # Determine Colors
+    # --- PROCESS 2: WEICONG'S MODEL (Insulin) ---
+    suggested_insulin = predict_insulin_dosage(request.nutrients, predicted_gi)
+    
+    # --- PROCESS 3: GENAI (Advisor) ---
+    ai_tip = get_food_fact(request.food_name, request.nutrients, predicted_gi, predicted_gl)
+    
+    # GI Color Logic
     gi_color = '#28a745'
     if predicted_gi >= 55: gi_color = '#ffc107'
     if predicted_gi >= 70: gi_color = '#dc3545'
@@ -94,4 +105,8 @@ async def analyze_food(request: AnalysisRequest):
         "insulin_suggestion": suggested_insulin,  # <--- Sending this to Frontend
         "ai_message": ai_tip,
         "supabase_status": "success" if not supabase_result.get("error") else "failed"
+        "gl": predicted_gl,
+        "gi_color": gi_color,
+        "insulin_suggestion": suggested_insulin,
+        "ai_message": ai_tip
     }

@@ -1,57 +1,48 @@
-# app_backend/modules/genai_advisor.py
 import os
-import requests
-import json
+from dotenv import load_dotenv
+from huggingface_hub import InferenceClient
 
-# 1. Get your free token from: https://huggingface.co/settings/tokens
-# 2. Paste it in your .env file or hardcode it for testing
-HF_API_KEY = os.getenv("HF_API_KEY", None)
+load_dotenv()
+HF_API_KEY = os.getenv("HF_TOKEN")
 
-# We will use Mistral-7B-Instruct (A very smart, open-source model)
-REPO_ID = "mistralai/Mistral-7B-Instruct-v0.3"
-API_URL = f"https://api-inference.huggingface.co/models/{REPO_ID}"
+# Initialize client
+client = InferenceClient(api_key=HF_API_KEY)
 
-def get_food_fact(food_name, nutrients, predicted_gi):
-    
-    # --- 1. CHECK KEY ---
-    if not HF_API_KEY or HF_API_KEY.startswith("PASTE"):
-        return "MOCK TIP: Please add a Hugging Face Access Token to use open-source AI."
+# Using Llama 3.1 for stable provider support
+MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
 
-    # --- 2. PREPARE PROMPT (Formatted for Mistral) ---
-    # Open source models work best with precise instructions
-    prompt_text = f"""[INST] 
-    You are a nutritionist. Give a 1-sentence advice on how to eat '{food_name}' to reduce glucose spikes.
-    Context: It has a GI of {predicted_gi}. 
-    Keep it under 20 words.
-    [/INST]
+def get_food_fact(food_name, nutrients, predicted_gi, predicted_gl):
     """
+    Generates a concise health tip using both GI and GL metrics.
+    """
+    if not HF_API_KEY or HF_API_KEY.startswith("PASTE"):
+        return "Please add a valid HF Access Token to your .env file."
 
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    payload = {
-        "inputs": prompt_text,
-        "parameters": {
-            "max_new_tokens": 60, # Keep response short
-            "return_full_text": False # Don't repeat the question back
+    # Updated prompt to include Glycemic Load (GL)
+    prompt_messages = [
+        {
+            "role": "user", 
+            "content": (
+                f"Give a 10-word health tip for eating {food_name}. "
+                f"Metrics: Glycemic Index {predicted_gi}, Glycemic Load {predicted_gl}. "
+                f"Focus on the impact of these combined values."
+            )
         }
-    }
+    ]
 
-    # --- 3. CALL HUGGING FACE API ---
     try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=5)
+        response = client.chat.completions.create(
+            model=MODEL_ID,
+            messages=prompt_messages,
+            max_tokens=35, # Slightly increased to handle complex advice
+            temperature=0.6
+        )
         
-        if response.status_code == 200:
-            result = response.json()
-            # HuggingFace returns a list of dicts: [{'generated_text': '...'}]
-            if isinstance(result, list) and len(result) > 0:
-                return result[0].get('generated_text', '').strip()
-            return "No advice generated."
-        
-        elif response.status_code == 503:
-            return "AI Model is loading (Cold Boot). Try again in 20s."
-        else:
-            print(f"HF Error {response.status_code}: {response.text}")
-            return "Could not connect to Open Source AI."
+        tip = response.choices[0].message.content.strip()
+        # Cleaning up the response in case the AI gets wordy
+        return tip if tip else "No tip generated."
 
     except Exception as e:
-        print(f"Connection Error: {e}")
-        return "AI Service Unavailable."
+        print(f"💥 AI Error: {e}")
+        # Soft fallback to keep the UI clean
+        return "Combine with fiber and protein to manage glucose response."
