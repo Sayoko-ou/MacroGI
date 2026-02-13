@@ -24,6 +24,7 @@ def get_food_fact(food_name, nutrients, predicted_gi, predicted_gl):
             "role": "user", 
             "content": (
                 f"Give a 10-word health tip for eating {food_name}. "
+                f"Nutrients: {nutrients} ."
                 f"Metrics: Glycemic Index {predicted_gi}, Glycemic Load {predicted_gl}. "
                 f"Focus on the impact of these combined values."
             )
