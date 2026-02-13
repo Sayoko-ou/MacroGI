@@ -28,8 +28,8 @@ app = Flask(__name__,
 app.secret_key = os.urandom(24)
 
 # --- DATABASE CONFIG ---
-CLOUD_DB_URL = os.getenv("CLOUD_DB_URL")
-DB_KEY = os.getenv("DB_KEY")
+CLOUD_DB_URL = os.getenv("URL")
+DB_KEY = os.getenv("KEY")
 
 database_headers = {
     "apikey": DB_KEY,
@@ -269,7 +269,7 @@ def api_save_entry_sim():
     return jsonify({
         "status": "success", 
         "message": f"Saved to {final_entry['mealtype']}!",
-        "created_at": final_entry['created_at']
+        "created_at": final_entry['created_at']})
 
     # 2. INJECT SERVER DATA
     # Formats as "2023-10-27 14:30:00"
