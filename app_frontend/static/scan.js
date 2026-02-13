@@ -240,12 +240,77 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function validateFormState() {
-        const nameFilled = foodNameInput.value.trim() !== '';
+        const nameFilled = foodNameInput && foodNameInput.value.trim() !== '';
+        const typeFilled = mealTypeSelect && mealTypeSelect.value !== '';
         const dataPresent = hasNutrientData(); 
         predictGiBtn.disabled = !dataPresent;
         saveEntryBtn.disabled = !(nameFilled && giPredicted);
         saveEntryBtn.textContent = saveEntryBtn.disabled ? "Complete all fields to save" : "Save Entry";
+        if(!saveEntryBtn) return;
+        
+        
+        if (nameFilled && typeFilled && giPredicted) {
+            saveEntryBtn.disabled = false;
+            saveEntryBtn.textContent = "Save Entry";
+            if(saveHelperText) saveHelperText.classList.add('hidden');
+        } else {
+            saveEntryBtn.disabled = true;
+            saveEntryBtn.textContent = "Complete all fields to save";
+            if(saveHelperText) saveHelperText.classList.remove('hidden');
+        }
     }
 
-    foodNameInput.addEventListener('input', validateFormState);
+    if(foodNameInput) foodNameInput.addEventListener('input', validateFormState);
+    if(mealTypeSelect) mealTypeSelect.addEventListener('change', validateFormState);
+
+    const saveBtn = document.getElementById('save-entry-btn');
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+    
+            const entryData = {
+                carbs: document.querySelector('[data-nutrient="carbs"]').value,
+                fat: document.querySelector('[data-nutrient="fat"]').value,
+                fiber: document.querySelector('[data-nutrient="fiber"]').value,
+                protein:document.querySelector('[data-nutrient="protein"]').value,
+                sodium:document.querySelector('[data-nutrient="sodium"]').value,
+                calories:document.querySelector('[data-nutrient="calories"]').value,
+                foodname:document.getElementById('food-name').value,
+                mealtype:document.getElementById('meal-type').value,
+                insulin:document.getElementById('insulin-input').value,
+                gi:document.getElementById('gi').value,
+                gl:document.getElementById('gl').value
+            };
+
+            
+
+            try {
+                // 2. Send the POST request to Flask
+                const response = await fetch('/scan/save_entry', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(entryData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert('Success: ' + result.message);
+                    
+                    // 3. Clear UI only AFTER a successful save
+                    foodNameInput.value = '';
+                    giResultArea.classList.add('hidden');
+                    validateFormState();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.log(error.name);    // "TypeError"
+                console.log(error.message); // "Failed to fetch"
+            }   
+        });
+    }
+
 });

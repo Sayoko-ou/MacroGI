@@ -4,7 +4,11 @@ import random
 import requests
 import time
 import os
+<<<<<<< HEAD
 from dotenv import load_dotenv
+=======
+from app_backend.database import db
+>>>>>>> e29673c (store meal data to supabase db)
 
 load_dotenv()
 
@@ -168,6 +172,7 @@ def api_save_entry_sim():
     
     data = request.json
     
+<<<<<<< HEAD
     # FINAL PAYLOAD: Includes calories, gi, gl
     final_entry = {
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -192,6 +197,38 @@ def api_save_entry_sim():
         "status": "success", 
         "message": f"Saved to {final_entry['mealtype']}!",
         "created_at": final_entry['created_at']
+=======
+
+    # 2. INJECT SERVER DATA
+    # Formats as "2023-10-27 14:30:00"
+    data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data['user_id'] = session['user_id']
+
+    db.table("meal_data").insert({
+        "carbs": data['carbs'], 
+        "protein": data['protein'],
+        'sodium': data['sodium'],
+        'fiber': data['fiber'],
+        'fat': data['fat'],
+        'calories': data['calories'],
+        'foodname': data['foodname'],
+        'mealtype': data['mealtype'],
+        'insulin': data['insulin'],
+        'created_at': data['timestamp'],
+        'gi': data['gi'],
+        'gl': data['gl']
+
+    
+    }).execute()
+    
+    # 3. Save to DB (or print for demo)
+    print(f"SAVED for User {data['user_id']}: {data}")
+    
+    return jsonify({
+        "status": "success", 
+        "message": f"Successfully saved to {data['mealtype']} diary!",
+        "created_at": data['timestamp']
+>>>>>>> e29673c (store meal data to supabase db)
     })
 
 @app.route("/advisor", methods=["POST"])
