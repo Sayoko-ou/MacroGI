@@ -485,3 +485,58 @@ body {
     cursor: pointer;
     font-weight: bold;
 }
+
+/* --- SCANNER TABLE UPDATES --- */
+
+/* Subtle Ghost Button at bottom of card */
+.subtle-btn {
+    background: none;
+    border: 1px dashed #ddd;
+    color: #888;
+    width: 100%;
+    padding: 12px;
+    margin-top: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.subtle-btn:hover {
+    background: #f8f9fa;
+    border-color: #aaa;
+    color: #333;
+}
+
+/* Delete Row Icon */
+.delete-row-btn {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 20px;
+    padding: 0 8px;
+    transition: color 0.2s;
+    line-height: 1;
+}
+
+.delete-row-btn:hover {
+    color: #dc3545; /* Red on hover */
+}
+
+/* Ensure table cells align vertically */
+.data-table td {
+    vertical-align: middle;
+}
+
+/* Retake Prompt Styling */
+.warning-box {
+    background: #fff3cd;
+    color: #856404;
+    padding: 12px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    border: 1px solid #ffeeba;
+    font-size: 0.85em;
+}

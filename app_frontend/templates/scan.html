@@ -1,11 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
-
 <div class="scanner-wrapper">
-    
     <div class="scan-left">
-        
         <div class="card upload-card">
             <div id="image-preview-container" class="preview-box hidden">
                 <img id="image-preview" src="" alt="Preview">
@@ -13,17 +10,12 @@
             </div>
 
             <div id="initial-actions" class="upload-actions">
-                <button class="upload-btn" onclick="document.getElementById('file-upload').click()">
-                    <span class="icon">📁</span> Upload
-                </button>
-                <button class="upload-btn" onclick="document.getElementById('camera-upload').click()">
-                    <span class="icon">📷</span> Camera
-                </button>
+                <button class="upload-btn" onclick="document.getElementById('file-upload').click()">📁 Upload</button>
+                <button class="upload-btn" onclick="document.getElementById('camera-upload').click()">📷 Camera</button>
             </div>
 
             <input type="file" id="file-upload" accept="image/*" hidden>
             <input type="file" id="camera-upload" accept="image/*" capture="environment" hidden>
-
             <button id="scan-now-btn" class="main-btn hidden">Run Scanner</button>
             
             <div id="loading-spinner" class="hidden" style="margin-top:15px; text-align:center;">
@@ -32,15 +24,12 @@
         </div>
 
         <div class="card meta-card">
-            <h3 style="margin-top:0; font-size:18px; color:#333;">Meal Details</h3>
-            
+            <h3>Meal Details</h3>
             <div class="input-group">
                 <label>Food Name</label>
                 <input type="text" id="food-name" class="std-input" placeholder="e.g. Banana">
             </div>
-            
             <div style="display: flex; gap: 20px;">
-                
                 <div class="input-group" style="flex: 1;">
                     <label>Meal Type</label>
                     <select id="meal-type" class="std-input">
@@ -50,43 +39,41 @@
                         <option value="Snack">Snack</option>
                     </select>
                 </div>
-                
                 <div class="input-group" style="flex: 1;">
                     <label>Insulin (Units)</label>
                     <input type="number" id="insulin-input" step="0.5" placeholder="0.0" class="std-input">
-                    <div id="insulin-hint" class="hidden" style="color: #28a745; font-size: 0.85em; margin-top: 4px; font-weight: bold;">
-                    </div>
+                    <div id="insulin-hint" class="hidden" style="color: #28a745; font-size: 0.85em; margin-top: 4px; font-weight: bold;"></div>
                 </div>
-
             </div>
         </div>
-
     </div>
 
     <div class="scan-right">
-        
         <div class="card table-card">
             <div class="card-header">
                 <h3>Nutrition Facts</h3>
                 <span class="badge">Editable</span>
             </div>
             
+            <div id="retake-prompt" class="warning-box hidden">
+                ⚠️ <strong>No text detected.</strong> Try retaking with better light or manual entry.
+            </div>
+            
             <table class="data-table">
                 <thead>
                     <tr>
                         <th style="width: 40%;">Nutrient</th>
-                        <th style="width: 30%;">Value</th>
-                        <th style="width: 30%;">Unit</th> 
+                        <th style="width: 25%;">Value</th>
+                        <th style="width: 25%;">Unit</th>
+                        <th style="width: 10%;"></th>
                     </tr>
                 </thead>
                 <tbody id="nutrient-table-body">
-                    <tr class="empty-state-row">
-                        <td colspan="3" style="text-align:center; padding: 40px; color: #aaa;">
-                            Upload an image to see data
-                        </td>
-                    </tr>
+                    <tr class="empty-state-row"><td colspan="4" style="text-align:center; padding: 40px; color: #aaa;">Upload an image to see data</td></tr>
                 </tbody>
             </table>
+
+            <button id="add-row-btn" class="subtle-btn">+ Add Nutrient</button>
         </div>
 
         <div class="card ai-card">
@@ -94,24 +81,18 @@
                 <h3>AI Analysis</h3>
                 <button id="predict-gi-btn" class="ai-btn">Predict GI</button>
             </div>
-            
             <div id="gi-result-area" class="ai-content hidden">
                 <div class="gi-box">
                     <span class="gi-label">Predicted GI</span>
                     <span id="gi-value-display" class="gi-value">--</span>
                 </div>
-                <p class="ai-message">
-                    Based on the fiber-to-sugar ratio, this food is likely 
-                    <span id="gi-text-desc">moderate</span> GI.
-                </p>
+                <p class="ai-message"></p>
             </div>
         </div>
 
-        <button id="save-entry-btn" class="save-btn" disabled>Save Entry</button>
+        <button id="save-entry-btn" class="save-btn" disabled>Complete all fields to save</button>
         <p id="save-helper-text" class="error-msg">Complete all fields to save</p>
-
     </div>
 </div>
-
 <script src="{{ url_for('static', filename='scan.js') }}"></script>
 {% endblock %}

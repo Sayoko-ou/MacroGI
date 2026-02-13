@@ -5,24 +5,22 @@ import requests
 import time
 import os
 
-# Safe import chatbot
-# Cannot launch server without it
+
+
 bot = None
 try:
-    # Try importing your teammate's code
     from app_backend.modules.chatbot import MacroGIBot
     # If this succeeds, we create the real bot
     bot = MacroGIBot()
     print("✅ Real AI Chatbot Connected")
 
 except Exception as e:
-    # If it fails (Missing Key, etc.), we print error and use a Dummy
     print(f"⚠️ Chatbot Error: {e}")
     print("ℹ️ Switching to Mock Chatbot (Safe Mode)")
 
     class MockBot:
         def get_advice(self, user_text):
-            return "System: I am currently offline because the API Key is missing. Please ask JingEn to check the .env file."
+            return "System: I am currently offline because the API Key is missing. Please ask Jing En to send the .env file."
     
     bot = MockBot()
 
@@ -249,29 +247,36 @@ def api_predict_gi_sim():
 
 
 
+# app.py
+
 @app.route('/scan/save_entry', methods=['POST'])
 def api_save_entry_sim():
-    """Simulates saving the final validated entry to DB"""
-
     if not is_logged_in(): return jsonify({"error": "Unauthorized"}), 401
-        
-    time.sleep(0.5)
     
-    # 1. Get data from Frontend
     data = request.json
     
-    # 2. INJECT SERVER DATA
-    # Formats as "2023-10-27 14:30:00"
-    data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    data['user_id'] = session['user_id']
+    # Inject Database Metadata
+    # Note: 'created_at' replaces 'timestamp' to match your schema
+    final_entry = {
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "user_id": session['user_id'],
+        "foodname": data.get('foodname'),
+        "mealtype": data.get('mealtype'),
+        "carbs": data.get('carbs', 0),
+        "protein": data.get('protein', 0),
+        "fat": data.get('fat', 0),
+        "fiber": data.get('fiber', 0),
+        "sodium": data.get('sodium', 0),
+        "insulin": data.get('insulin', 0)
+    }
     
-    # 3. Save to DB (or print for demo)
-    print(f"SAVED for User {data['user_id']}: {data}") 
+    # GI is not in your list of 10 columns, so we omit it from storage
+    print(f"DATABASE INSERT: {final_entry}") 
     
     return jsonify({
         "status": "success", 
-        "message": "Entry saved to diary!",
-        "saved_at": data['timestamp'] # Send it back just in case
+        "message": f"Successfully saved to {final_entry['mealtype']} diary!",
+        "created_at": final_entry['created_at']
     })
 
 
