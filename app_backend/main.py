@@ -17,12 +17,7 @@ class AnalysisRequest(BaseModel):
 @app.post("/analyze-food")
 async def analyze_food(request: AnalysisRequest):
     # --- PROCESS 1: TEAGAN'S MODELS (GI & GL) ---
-    predicted_gi = predict_gi_sklearn(request.nutrients)
-    predicted_gi = max(0, min(100, int(predicted_gi)))
-    
-    # NEW: Teagan's 2nd Model for Glycemic Load
-    predicted_gl = predict_gl_sklearn(request.nutrients)
-    predicted_gl = round(float(predicted_gl), 1)
+    predicted_gi, predicted_gl = predict_gi_sklearn(request.nutrients)
     
     # --- PROCESS 2: WEICONG'S MODEL (Insulin) ---
     suggested_insulin = predict_insulin_dosage(request.nutrients, predicted_gi)

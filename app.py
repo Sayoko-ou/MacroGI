@@ -267,7 +267,7 @@ def api_save_entry_sim():
         "fat": data.get('fat', 0),
         "fiber": data.get('fiber', 0),
         "sodium": data.get('sodium', 0),
-        "insulin": data.get('insulin', 0)
+        "insulin": data.get('insulin', 0),
     }
     
     # GI is not in your list of 10 columns, so we omit it from storage
