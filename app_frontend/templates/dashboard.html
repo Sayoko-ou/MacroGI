@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-page">
+    <!-- Navigation Tabs -->
+    <div class="dashboard-nav">
+        <a href="/" class="nav-tab">NUTRI DASHBOARD</a>
+        <a href="/dashboard" class="nav-tab active">FOOD DIARY</a>
+        <a href="#" class="nav-tab">PERSON ANALYTICS</a>
+    </div>
+
+    <!-- Dashboard Header: View Selector (Left) and Date Selectors (Right) -->
+    <div class="dashboard-header">
+        <!-- View Selector on Left -->
+        <div class="view-selector">
+            {% if view == 'overall' or not view %}
+            <button class="view-btn active" data-view="overall">Overall</button>
+            {% else %}
+            <button class="view-btn" data-view="overall">Overall</button>
+            {% endif %}
+            {% if view == 'weekly' %}
+            <button class="view-btn active" data-view="weekly">Weekly</button>
+            {% else %}
+            <button class="view-btn" data-view="weekly">Weekly</button>
+            {% endif %}
+            {% if view == 'daily' %}
+            <button class="view-btn active" data-view="daily">Daily</button>
+            {% else %}
+            <button class="view-btn" data-view="daily">Daily</button>
+            {% endif %}
+        </div>
+
+        <!-- Date Selectors on Right (shown based on view) -->
+        <div class="date-selector-container">
+            <!-- Weekly Date Selector -->
+            <div class="week-selector-wrapper {% if view != 'weekly' %}hidden{% endif %}">
+                <button class="nav-arrow" onclick="navigatePeriod(-1)">←</button>
+                <div class="week-selector">
+                    {% for week in weeks %}
+                    <button class="week-btn {{ 'active' if week.is_selected else '' }}" 
+                            data-week="{{ week.week_num }}" 
+                            data-start="{{ week.start_date }}" 
+                            data-end="{{ week.end_date }}">
+                        W{{ week.week_num }}<br>
+                        <small>{{ week.start_date }} - {{ week.end_date }}</small>
+                    </button>
+                    {% endfor %}
+                </div>
+                <button class="nav-arrow" onclick="navigatePeriod(1)">→</button>
+            </div>
+
+            <!-- Daily Date Selector -->
+            <div class="day-selector-wrapper {% if view != 'daily' %}hidden{% endif %}">
+                <button class="nav-arrow" onclick="navigatePeriod(-1)">←</button>
+                <div class="day-selector">
+                    {% for day in days %}
+                    <button class="day-btn {{ 'active' if day.is_selected else '' }}" 
+                            data-day="{{ day.day_name }}" 
+                            data-date="{{ day.date_str }}">
+                        {{ day.day_name }}<br>
+                        <small>{{ day.day_num }}</small>
+                    </button>
+                    {% endfor %}
+                </div>
+                <button class="nav-arrow" onclick="navigatePeriod(1)">→</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overall Dashboard View -->
+    <div id="overall-view" class="dashboard-view {% if view == 'overall' or not view %}active{% endif %}">
+        <div class="dashboard-grid">
+            <!-- Top Section: Line Graph and Pie Chart -->
+            <div class="chart-section">
+                <div class="chart-card">
+                    <h3>Monthly Trends</h3>
+                    <canvas id="overall-line-chart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Meal Type Percentage By GL</h3>
+                    <canvas id="overall-pie-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Bottom Section: Top 20 Highest GI Foods -->
+            <div class="chart-card full-width">
+                <h3>Top 20 Highest GI food and its respective Carb</h3>
+                <div class="bar-charts-container">
+                    <div class="bar-chart-wrapper">
+                        <h4>GI Values</h4>
+                        <canvas id="overall-gi-chart"></canvas>
+                    </div>
+                    <div class="bar-chart-wrapper">
+                        <h4>Carb Values</h4>
+                        <canvas id="overall-carb-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weekly Dashboard View -->
+    <div id="weekly-view" class="dashboard-view {% if view == 'weekly' %}active{% endif %}">
+        <div class="dashboard-container">
+
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="summary-value">{{ weekly_data.glycaemic_load }}</div>
+                <div class="summary-label">Glycaemic Load</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ weekly_data.carbohydrates }}</div>
+                <div class="summary-label">Carbohydrates</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ weekly_data.calories }}</div>
+                <div class="summary-label">Calories (kcal)</div>
+            </div>
+        </div>
+
+        <div class="weekly-charts">
+            <div class="chart-card">
+                <h3>Weekly Trends</h3>
+                <canvas id="weekly-line-chart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Top 5 Highest GL food</h3>
+                <canvas id="weekly-bar-chart"></canvas>
+                <canvas id="weekly-pie-chart" style="margin-top: 20px;"></canvas>
+            </div>
+        </div>
+        
+        <div class="chart-card full-width" style="margin-top: 30px;">
+            <h3>Daily Breakdown</h3>
+            <canvas id="weekly-daily-breakdown"></canvas>
+        </div>
+        </div>
+    </div>
+
+    <!-- Daily Dashboard View -->
+    <div id="daily-view" class="dashboard-view {% if view == 'daily' %}active{% endif %}">
+        <div class="dashboard-container">
+
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="summary-value">{{ daily_data.glycaemic_load }}</div>
+                <div class="summary-label">Glycaemic Load</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ daily_data.carbohydrates }}</div>
+                <div class="summary-label">Carbohydrates</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ daily_data.calories }}</div>
+                <div class="summary-label">Calories (kcal)</div>
+            </div>
+        </div>
+
+        <div class="daily-content">
+            <div class="food-timeline">
+                <h3>Food Log</h3>
+                <div class="timeline-items">
+                    {% for entry in daily_data.food_entries %}
+                    <div class="timeline-item">
+                        <div class="timeline-time">{{ entry.time }}</div>
+                        <div class="timeline-content">
+                            <strong>{{ entry.food }}</strong>
+                            <span class="timeline-gl">{{ entry.gl }} GL</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="daily-charts">
+                <div class="chart-card">
+                    <h3>Daily Trends</h3>
+                    <canvas id="daily-line-chart"></canvas>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+{% endblock %}

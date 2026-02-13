@@ -84,5 +84,7 @@ def extract_nutrients(image_bytes):
         "nutrients": extracted,
         "success": True
     }
+# Initialize models when this module is imported
+load_models()
 
 load_models()

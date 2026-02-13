@@ -4,11 +4,8 @@ import random
 import requests
 import time
 import os
-<<<<<<< HEAD
 from dotenv import load_dotenv
-=======
 from app_backend.database import db
->>>>>>> e29673c (store meal data to supabase db)
 
 load_dotenv()
 
@@ -129,6 +126,83 @@ def scan_page():
     if not is_logged_in(): return redirect(url_for('login_page'))
     return render_template('scan.html')
 
+@app.route('/dashboard')
+def dashboard_page():
+    if not is_logged_in(): return redirect(url_for('login_page'))
+    
+    greeting = get_greeting()
+    view = request.args.get('view', 'overall')
+    
+    # Generate weeks (last 7 weeks)
+    today = datetime.now().date()
+    weeks = []
+    for i in range(6, -1, -1):
+        # Calculate week start (Monday)
+        days_since_monday = today.weekday()
+        week_start = today - timedelta(days=days_since_monday + (i * 7))
+        week_end = week_start + timedelta(days=6)
+        weeks.append({
+            'week_num': 7 - i,
+            'start_date': week_start.strftime('%m/%d'),
+            'end_date': week_end.strftime('%m/%d'),
+            'is_selected': i == 0
+        })
+    
+    # Generate days (last 7 days)
+    # Check if a specific date was requested for daily view
+    date_str = request.args.get('date')
+    selected_date = today
+    if date_str and view == 'daily':
+        try:
+            selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            selected_date = today
+    
+    days = []
+    # Show 7 days centered around selected date (or today)
+    base_date = selected_date if view == 'daily' else today
+    for i in range(-3, 4):  # 3 days before, selected day, 3 days after
+        d = base_date + timedelta(days=i)
+        days.append({
+            'day_name': d.strftime('%a').upper(),
+            'day_num': d.day,
+            'date_str': d.strftime('%Y-%m-%d'),
+            'is_selected': d == selected_date if view == 'daily' else (d == today)
+        })
+    
+    # Generate sample data based on selected date
+    date_for_seed = selected_date if view == 'daily' else today
+    # Use selected_date for daily view, today for weekly/overall
+    random.seed(date_for_seed.toordinal())
+    
+    weekly_data = {
+        'glycaemic_load': random.randint(600, 800),
+        'carbohydrates': random.randint(800, 1200),
+        'calories': random.randint(8000, 12000)
+    }
+    
+    daily_data = {
+        'glycaemic_load': random.randint(80, 120),
+        'carbohydrates': random.randint(100, 200),
+        'calories': random.randint(1200, 2500),
+        'food_entries': [
+            {'time': '09:00', 'food': 'Bread', 'gl': 100},
+            {'time': '12:00', 'food': 'McDonalds', 'gl': 400},
+            {'time': '19:00', 'food': 'Snacks', 'gl': 100}
+        ]
+    }
+    
+    return render_template('dashboard.html',
+                         greeting=greeting,
+                         user=session.get('user_name'),
+                         view=view,
+                         weeks=weeks,
+                         days=days,
+                         weekly_data=weekly_data,
+                         daily_data=daily_data)
+
+
+# --- NEW API ROUTES (Simulating Microservices) ---
 # --- API ROUTES ---
 
 @app.route('/scan/ocr', methods=['POST'])
@@ -172,7 +246,6 @@ def api_save_entry_sim():
     
     data = request.json
     
-<<<<<<< HEAD
     # FINAL PAYLOAD: Includes calories, gi, gl
     final_entry = {
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -197,7 +270,6 @@ def api_save_entry_sim():
         "status": "success", 
         "message": f"Saved to {final_entry['mealtype']}!",
         "created_at": final_entry['created_at']
-=======
 
     # 2. INJECT SERVER DATA
     # Formats as "2023-10-27 14:30:00"
@@ -228,12 +300,32 @@ def api_save_entry_sim():
         "status": "success", 
         "message": f"Successfully saved to {data['mealtype']} diary!",
         "created_at": data['timestamp']
->>>>>>> e29673c (store meal data to supabase db)
     })
 
 @app.route("/advisor", methods=["POST"])
 def get_response():
     user_message = request.json.get("message")
+    if not user_message:
+        return jsonify({"error": "No message provided"}), 400
+    
+    # Call your Gemini bot
+    bot_reply = bot.get_advice(user_message)
+    
+    return jsonify({"reply": bot_reply})
+
+# Dashboard API Endpoints
+@app.route('/api/dashboard/weekly', methods=['GET'])
+def api_weekly_data():
+    if not is_logged_in(): return jsonify({"error": "Unauthorized"}), 401
+    
+    week = request.args.get('week', '1')
+    random.seed(int(week) * 1000)
+    
+    return jsonify({
+        'glycaemic_load': random.randint(600, 800),
+        'carbohydrates': random.randint(800, 1200),
+        'calories': random.randint(8000, 12000)
+    })
     if not user_message: return jsonify({"error": "No message"}), 400
     return jsonify({"reply": bot.get_advice(user_message)})
 
