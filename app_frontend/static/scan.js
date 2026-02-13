@@ -259,7 +259,10 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 alert("Error: " + result.error);
             }
-        } catch (e) { alert("Error saving."); }
+        } catch (e) { 
+            console.error("Full Error:", e); // This prints the technical error to the Console
+            alert("Error saving: " + e.message); 
+        }
     });
 
     // --- Form State Management ---

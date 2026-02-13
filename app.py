@@ -242,65 +242,51 @@ def api_predict_gi_sim():
 
 @app.route('/scan/save_entry', methods=['POST'])
 def api_save_entry_sim():
-    if not is_logged_in(): return jsonify({"error": "Unauthorized"}), 401
+    # 1. Auth Check (Ensure this returns JSON for API calls)
+    if not session.get('user_id'):
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
     
-    data = request.json
-    
-    # FINAL PAYLOAD: Includes calories, gi, gl
-    final_entry = {
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "user_id": session['user_id'],
-        "foodname": data.get('foodname'),
-        "mealtype": data.get('mealtype'),
-        "calories": data.get('calories', 0),
-        "carbs": data.get('carbs', 0),
-        "protein": data.get('protein', 0),
-        "fat": data.get('fat', 0),
-        "fiber": data.get('fiber', 0),
-        "sodium": data.get('sodium', 0),
-        "insulin": data.get('insulin', 0),
-        "gi": data.get('gi', 0),
-        "gl": data.get('gl', 0)
-    }
-    
-    print(f"📊 DATABASE INSERT: {final_entry}") 
-    # Add requests.post(CLOUD_DB_URL...) here if you want to save to Supabase
-    
-    return jsonify({
-        "status": "success", 
-        "message": f"Saved to {final_entry['mealtype']}!",
-        "created_at": final_entry['created_at']})
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"status": "error", "error": "No data provided"}), 400
 
-    # 2. INJECT SERVER DATA
-    # Formats as "2023-10-27 14:30:00"
-    data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    data['user_id'] = session['user_id']
+        # 2. Sanitize and provide defaults
+        # Using .get(key, default) prevents KeyErrors
+        user_id = session['user_id']
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        insert_data = {
+            "user_id": user_id,
+            "foodname": data.get('foodname', 'Unknown Food'),
+            "mealtype": data.get('mealtype', 'Other'),
+            "calories": data.get('calories', 0),
+            "carbs": data.get('carbs', 0),
+            "protein": data.get('protein', 0),
+            "fat": data.get('fat', 0),
+            "fiber": data.get('fiber', 0),
+            "sodium": data.get('sodium', 0),
+            "insulin": data.get('insulin', 0),
+            "gi": data.get('gi', 0),
+            "gl": data.get('gl', 0),
+            "created_at": timestamp
+        }
 
-    db.table("meal_data").insert({
-        "carbs": data['carbs'], 
-        "protein": data['protein'],
-        'sodium': data['sodium'],
-        'fiber': data['fiber'],
-        'fat': data['fat'],
-        'calories': data['calories'],
-        'foodname': data['foodname'],
-        'mealtype': data['mealtype'],
-        'insulin': data['insulin'],
-        'created_at': data['timestamp'],
-        'gi': data['gi'],
-        'gl': data['gl']
+        # 3. Database Execution
+        # Use the sanitized insert_data dict here
+        db.table("meal_data").insert(insert_data).execute()
+        
+        print(f"✅ SAVED for User {user_id}: {insert_data['foodname']}")
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"Successfully saved to {insert_data['mealtype']} diary!",
+            "created_at": timestamp
+        })
 
-    
-    }).execute()
-    
-    # 3. Save to DB (or print for demo)
-    print(f"SAVED for User {data['user_id']}: {data}")
-    
-    return jsonify({
-        "status": "success", 
-        "message": f"Successfully saved to {data['mealtype']} diary!",
-        "created_at": data['timestamp']
-    })
+    except Exception as e:
+        print(f"❌ DATABASE ERROR: {str(e)}")
+        return jsonify({"status": "error", "error": str(e)}), 500
 
 @app.route("/advisor", methods=["POST"])
 def get_response():

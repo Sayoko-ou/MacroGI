@@ -104,7 +104,7 @@ async def analyze_food(request: AnalysisRequest):
         "gi_color": gi_color,
         "insulin_suggestion": suggested_insulin,  # <--- Sending this to Frontend
         "ai_message": ai_tip,
-        "supabase_status": "success" if not supabase_result.get("error") else "failed"
+        "supabase_status": "success" if not supabase_result.get("error") else "failed",
         "gl": predicted_gl,
         "gi_color": gi_color,
         "insulin_suggestion": suggested_insulin,
