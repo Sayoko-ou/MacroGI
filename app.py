@@ -4,8 +4,9 @@ import random
 import requests
 import time
 import os
+from dotenv import load_dotenv
 
-
+load_dotenv()
 
 bot = None
 try:
@@ -30,21 +31,6 @@ app = Flask(__name__,
             static_folder="app_frontend/static")
 app.secret_key = os.urandom(24)
 
-# --- 1. UPDATED USER DATABASE (With IDs) ---
-# Format: Email is key -> Value is dict with details
-USERS = {
-    "alex@macrogi.com": {
-        "password": "password123",
-        "name": "Alex",
-        "id": "1" 
-    },
-    "judge@school.com": {
-        "password": "admin",
-        "name": "Judge",
-        "id": "0"
-    }
-}
-
 # --- LOGIN HELPER ---
 def is_logged_in():
     return 'user_id' in session
@@ -57,33 +43,57 @@ def get_greeting():
 
 # --- PAGE ROUTES ---
 
+
+CLOUD_DB_URL = os.getenv("CLOUD_DB_URL")
+DB_KEY = os.getenv("DB_KEY")
+
+database_headers = {
+    "apikey": DB_KEY,
+    "Authorization": "Bearer " + DB_KEY,
+    "Content-Type": "application/json",
+}
+
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
-    # If already logged in, skip login page
     if is_logged_in():
         return redirect(url_for('home'))
 
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-        
-        # 1. Check if email exists in our dict
-        if email in USERS:
-            user_obj = USERS[email]
-            
-            # 2. Check password match
+
+        try:
+            query_url = f"{CLOUD_DB_URL}/rest/v1/users_by_email?email=eq.{email}&limit=1"
+
+            response = requests.get(query_url, headers=database_headers)
+            response.raise_for_status()
+
+            users = response.json()
+
+        except Exception as e:
+            print("LOGIN ERROR:", e)
+            flash(f"Database error: {e}")
+            return render_template('login.html')
+
+
+        # Check if user exists
+        if users:
+            user_obj = users[0]
+
+            # Check password
             if user_obj['password'] == password:
-                # 3. Save User ID and Name to Cookie
-                session['user_id'] = user_obj['id']
+                session['user_id'] = str(user_obj['id'])
                 session['user_name'] = user_obj['name']
-                session['user_email'] = email
+                session['user_email'] = user_obj['email']
                 return redirect(url_for('home'))
             else:
                 flash("Incorrect password")
         else:
             flash("User not found")
-            
+
     return render_template('login.html')
+
+
 
 @app.route('/logout')
 def logout():
