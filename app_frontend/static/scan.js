@@ -13,8 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const nutrientTableBody = document.getElementById('nutrient-table-body');
     const predictGiBtn = document.getElementById('predict-gi-btn');
     const giResultArea = document.getElementById('gi-result-area');
-    const giValueDisplay = document.getElementById('gi'); // Matching HTML ID
-    const glValueDisplay = document.getElementById('gl'); // Matching HTML ID
+    const giValueDisplay = document.getElementById('gi');
+    const glValueDisplay = document.getElementById('gl');
     const saveEntryBtn = document.getElementById('save-entry-btn');
     const addRowBtn = document.getElementById('add-row-btn');
     const retakePrompt = document.getElementById('retake-prompt');
@@ -24,10 +24,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedFile = null;
     let giPredicted = false;
 
-    // --- Helpers ---
+    // --- Validation Helpers ---
+
     function hasNutrientData() {
         const values = document.querySelectorAll('.nutrient-val');
         if (values.length === 0) return false;
+        // Ensure at least one value is > 0
         return Array.from(values).some(input => parseFloat(input.value) > 0);
     }
 
@@ -42,7 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return VALID_NUTRIENTS.filter(n => !currentLabels.includes(n));
     }
 
-    // --- Handlers ---
+    // --- Image Handling ---
+
     function handleFileSelect(event) {
         const file = event.target.files[0];
         if (file) {
@@ -68,6 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
         scanNowBtn.classList.add('hidden');
         if(retakePrompt) retakePrompt.classList.add('hidden');
     });
+
+    // --- Scanner Logic ---
 
     if(scanNowBtn) scanNowBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
@@ -140,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function attachTableListeners() {
         document.querySelectorAll('.nutrient-val, .nutrient-name-select').forEach(input => {
             input.oninput = (e) => {
+                // Prevent negative values
                 if (e.target.type === 'number' && parseFloat(e.target.value) < 0) {
                     e.target.value = 0;
                 }
@@ -158,6 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- AI Prediction Logic ---
+
     if(predictGiBtn) predictGiBtn.addEventListener('click', async () => {
         if (!hasNutrientData()) {
             alert("Please provide nutrient values before predicting GI.");
@@ -170,7 +178,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const lab = row.querySelector('td strong');
             let name = sel ? sel.value : (lab ? lab.innerText : "");
             if (name) {
-                // Map Calories -> calories
                 const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
                 nutrientData[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
             }
@@ -193,10 +200,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (glValueDisplay) glValueDisplay.textContent = data.gl;
 
                 document.querySelector('.ai-message').innerHTML = `💡 ${data.ai_message || 'Balanced meal.'}`;
+                
                 if (document.getElementById('insulin-hint')) {
                     document.getElementById('insulin-hint').classList.remove('hidden');
                     document.getElementById('insulin-hint').innerHTML = `🤖 AI Suggests: ${data.insulin_suggestion} units`;
                 }
+                
                 giResultArea.classList.remove('hidden');
                 giPredicted = true;
             }
@@ -206,16 +215,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Save Logic (THE CORRECT ONE) ---
+
     if(saveEntryBtn) saveEntryBtn.addEventListener('click', async () => {
         const nutrientData = {};
+        
+        // 1. Scrape the Dynamic Table (Correct)
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
             const sel = row.querySelector('.nutrient-name-select');
             const lab = row.querySelector('td strong');
             let name = sel ? sel.value : (lab ? lab.innerText : "");
+            
+            // Map "Calories" -> "calories", "Total Fat" -> "fat", etc.
             const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
             nutrientData[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
         });
 
+        // 2. Build Payload matching app.py schema
         const payload = {
             foodname: foodNameInput.value,
             mealtype: mealTypeSelect.value,
@@ -235,82 +251,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            if ((await res.json()).status === "success") window.location.href = "/";
+            const result = await res.json();
+            
+            if (result.status === "success") {
+                alert("Success: " + result.message);
+                window.location.href = "/";
+            } else {
+                alert("Error: " + result.error);
+            }
         } catch (e) { alert("Error saving."); }
     });
 
+    // --- Form State Management ---
+
     function validateFormState() {
-        const nameFilled = foodNameInput && foodNameInput.value.trim() !== '';
-        const typeFilled = mealTypeSelect && mealTypeSelect.value !== '';
+        const nameFilled = foodNameInput.value.trim() !== '';
         const dataPresent = hasNutrientData(); 
+        
         predictGiBtn.disabled = !dataPresent;
         saveEntryBtn.disabled = !(nameFilled && giPredicted);
         saveEntryBtn.textContent = saveEntryBtn.disabled ? "Complete all fields to save" : "Save Entry";
-        if(!saveEntryBtn) return;
-        
-        
-        if (nameFilled && typeFilled && giPredicted) {
-            saveEntryBtn.disabled = false;
-            saveEntryBtn.textContent = "Save Entry";
-            if(saveHelperText) saveHelperText.classList.add('hidden');
-        } else {
-            saveEntryBtn.disabled = true;
-            saveEntryBtn.textContent = "Complete all fields to save";
-            if(saveHelperText) saveHelperText.classList.remove('hidden');
-        }
     }
 
-    if(foodNameInput) foodNameInput.addEventListener('input', validateFormState);
-    if(mealTypeSelect) mealTypeSelect.addEventListener('change', validateFormState);
-
-    const saveBtn = document.getElementById('save-entry-btn');
-
-    if (saveBtn) {
-        saveBtn.addEventListener('click', async () => {
-    
-            const entryData = {
-                carbs: document.querySelector('[data-nutrient="carbs"]').value,
-                fat: document.querySelector('[data-nutrient="fat"]').value,
-                fiber: document.querySelector('[data-nutrient="fiber"]').value,
-                protein:document.querySelector('[data-nutrient="protein"]').value,
-                sodium:document.querySelector('[data-nutrient="sodium"]').value,
-                calories:document.querySelector('[data-nutrient="calories"]').value,
-                foodname:document.getElementById('food-name').value,
-                mealtype:document.getElementById('meal-type').value,
-                insulin:document.getElementById('insulin-input').value,
-                gi:document.getElementById('gi').value,
-                gl:document.getElementById('gl').value
-            };
-
-            
-
-            try {
-                // 2. Send the POST request to Flask
-                const response = await fetch('/scan/save_entry', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(entryData)
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    alert('Success: ' + result.message);
-                    
-                    // 3. Clear UI only AFTER a successful save
-                    foodNameInput.value = '';
-                    giResultArea.classList.add('hidden');
-                    validateFormState();
-                } else {
-                    alert('Error: ' + result.error);
-                }
-            } catch (error) {
-                console.log(error.name);    // "TypeError"
-                console.log(error.message); // "Failed to fetch"
-            }   
-        });
-    }
-
+    foodNameInput.addEventListener('input', validateFormState);
 });
