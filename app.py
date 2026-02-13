@@ -5,7 +5,10 @@ import requests
 import time
 import os
 from dotenv import load_dotenv
+
+# all imports from backend
 from app_backend.database import db
+from app_backend.modules.fooddiary_query import query_db
 
 load_dotenv()
 
@@ -314,6 +317,133 @@ def api_weekly_data():
     })
     if not user_message: return jsonify({"error": "No message"}), 400
     return jsonify({"reply": bot.get_advice(user_message)})
+
+
+@app.route('/food-diary')
+def food_diary():
+    current_user_id = session.get('user_id') 
+    if not current_user_id:
+        return redirect(url_for('login_page'))
+
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    
+    # Capture filters
+    food_name = request.args.get('food', '') 
+    time_filter = request.args.get('time', 'all')
+    gi_filter = request.args.get('gi', 'all').lower()
+    gi_max = request.args.get('gi_max')
+    meal_type = request.args.get('meal', 'all').lower()
+    sort_option = request.args.get('sort', 'newest')
+
+    # 1. Base Parameters
+    params = {
+        'user_id': f'eq.{current_user_id}',
+        'select': '*',
+        'limit': per_page,
+        'offset': (page - 1) * per_page
+    }
+
+    # 2. Dynamic Sorting
+    if sort_option == 'oldest':
+        params['order'] = 'created_at.asc'
+    elif sort_option == 'highest_gi':
+        params['order'] = 'gi.desc'
+    else:
+        params['order'] = 'created_at.desc'
+
+    # 3. Time Filtering
+    if time_filter != 'all':
+        now = datetime.utcnow()
+        if time_filter == '24h':
+            start_date = now - timedelta(hours=24)
+        elif time_filter == '7d':
+            start_date = now - timedelta(days=7)
+        elif time_filter == '30d':
+            start_date = now - timedelta(days=30)
+        params['created_at'] = f'gte.{start_date.isoformat()}'
+
+    # 4. Food Name Search (Missing in your draft)
+    if food_name:
+        params['foodname'] = f'ilike.*{food_name}*'
+
+    # 5. GI Logic (Hybrid: Dropdown vs Slider)
+    if gi_filter != 'all' and gi_filter != 'custom':
+        if gi_filter == 'low':
+            params['gi'] = 'lte.55'
+        elif gi_filter == 'medium':
+            params['gi'] = 'and(gt.55,lt.70)'
+        elif gi_filter == 'high':
+            params['gi'] = 'gte.70'
+    elif gi_max: # If slider is used
+        params['gi'] = f'lte.{gi_max}'
+
+    # 6. Meal Type
+    if meal_type != 'all':
+        params['mealtype'] = f'eq.{meal_type.capitalize()}'
+
+    try:
+        entries, total_records = query_db('meal_data', params)
+        
+        for entry in entries:
+            raw_ts = entry.get('created_at')
+            if raw_ts:
+                dt_obj = datetime.fromisoformat(raw_ts.replace('Z', '+00:00'))
+                entry['display_date'] = dt_obj.strftime('%d %b %Y') 
+                entry['display_time'] = dt_obj.strftime('%I:%M %p')
+        
+        total_pages = (total_records // per_page) + (1 if total_records % per_page > 0 else 0)
+        pagination = {
+            'page': page,
+            'pages': max(total_pages, 1),
+            'has_prev': page > 1,
+            'has_next': page < total_pages,
+            'prev_num': page - 1,
+            'next_num': page + 1
+        }
+
+        return render_template('food_diary.html', 
+                            entries=entries, 
+                            pagination=pagination,
+                            current_sort=sort_option,   
+                            current_meal=meal_type,     
+                            current_time=time_filter)
+    
+
+    except Exception as e:
+        print(f"Route Error: {e}")
+        return "Internal Server Error", 500
+    
+
+
+@app.route('/api/nutrients/<int:entry_id>')
+def get_nutrients(entry_id):
+    user_id = session.get('user_id')
+    params = {
+        'id': f'eq.{entry_id}',
+        'user_id': f'eq.{user_id}',
+        'select': '*'
+    }
+
+    try:
+        data, _ = query_db('meal_data', params)
+        if not data:
+            return jsonify({"nutrients": []}), 404
+
+        meal = data[0]
+        
+        nutrients_list = [
+            {"name": "Calories", "value": meal.get('calories'), "unit": "kcal"},
+            {"name": "Carbohydrates", "value": meal.get('carbs'), "unit": "g"},
+            {"name": "Protein", "value": meal.get('protein'), "unit": "g"},
+            {"name": "Fat", "value": meal.get('fat'), "unit": "g"},
+            {"name": "Fiber", "value": meal.get('fiber'), "unit": "g"},
+            {"name": "Sodium", "value": meal.get('sodium'), "unit": "mg"}
+        ]
+
+        return jsonify({"nutrients": nutrients_list})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
