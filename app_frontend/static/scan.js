@@ -14,17 +14,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const predictGiBtn = document.getElementById('predict-gi-btn');
     const giResultArea = document.getElementById('gi-result-area');
     const giValueDisplay = document.getElementById('gi-value-display');
+    const glValueDisplay = document.getElementById('gl-value-display'); // New GL Element
     const saveEntryBtn = document.getElementById('save-entry-btn');
     const addRowBtn = document.getElementById('add-row-btn');
     const retakePrompt = document.getElementById('retake-prompt');
 
-    // Sugar removed from configuration
+    // Configuration: Sugar is excluded as requested
     const VALID_NUTRIENTS = ["Energy", "Protein", "Total Fat", "Carbohydrate", "Fiber", "Sodium"];
     let selectedFile = null;
     let giPredicted = false;
 
+    // --- Validation Helpers ---
+
     /**
      * Checks if the table contains any actual nutrient data (> 0).
+     * Prevents running AI on empty rows.
      */
     function hasNutrientData() {
         const values = document.querySelectorAll('.nutrient-val');
@@ -34,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Re-scans the table to find which nutrients are NOT currently displayed.
+     * Allows deleted nutrients to be added back to the dropdown.
      */
     function getAvailableNutrients() {
         const currentLabels = [];
@@ -45,6 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         return VALID_NUTRIENTS.filter(n => !currentLabels.includes(n));
     }
+
+    // --- Image Handling ---
 
     function handleFileSelect(event) {
         const file = event.target.files[0];
@@ -71,6 +78,8 @@ document.addEventListener('DOMContentLoaded', () => {
         scanNowBtn.classList.add('hidden');
         if(retakePrompt) retakePrompt.classList.add('hidden');
     });
+
+    // --- Scanner Logic ---
 
     if(scanNowBtn) scanNowBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
@@ -100,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nutrients = data.nutrients || {};
         
         VALID_NUTRIENTS.forEach(name => {
+            // Keys match ocr_engine.py exactly
             const val = nutrients[name] || 0;
             let unit = (name === 'Energy') ? 'kcal' : (name === 'Sodium' ? 'mg' : 'g');
             nutrientTableBody.innerHTML += createRow(name, val, unit, false);
@@ -118,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${available.map(n => `<option value="${n}">${n}</option>`).join('')}
             </select>`;
         }
-        // Added min="0" to the numeric input to prevent negative values
+        // min="0" ensures no negative values
         return `<tr>
             <td>${labelHtml}</td>
             <td><input type="number" min="0" step="0.1" class="table-input nutrient-val" value="${value||0}"></td>
@@ -142,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function attachTableListeners() {
         document.querySelectorAll('.nutrient-val, .nutrient-name-select').forEach(input => {
             input.oninput = (e) => {
-                // Negative value handling: Reset to 0 if the user enters a negative number
+                // Negative value handling
                 if (e.target.type === 'number' && parseFloat(e.target.value) < 0) {
                     e.target.value = 0;
                 }
@@ -152,13 +162,20 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
         document.querySelectorAll('.delete-row-btn').forEach(btn => {
-            btn.onclick = (e) => { e.target.closest('tr').remove(); giPredicted = false; validateFormState(); };
+            btn.onclick = (e) => { 
+                e.target.closest('tr').remove(); 
+                giPredicted = false; 
+                if(giResultArea) giResultArea.classList.add('hidden');
+                validateFormState(); 
+            };
         });
     }
 
+    // --- AI Prediction Logic ---
+
     if(predictGiBtn) predictGiBtn.addEventListener('click', async () => {
         if (!hasNutrientData()) {
-            alert("No nutrient values found. Please scan an image or enter values manually.");
+            alert("Please provide nutrient values before predicting GI.");
             return;
         }
 
@@ -168,31 +185,48 @@ document.addEventListener('DOMContentLoaded', () => {
             const lab = row.querySelector('td strong');
             let name = sel ? sel.value : (lab ? lab.innerText : "");
             if (name) {
+                // Standardize keys for backend models
                 const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
                 nutrientData[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
             }
         });
 
-        predictGiBtn.textContent = "Calculating...";
+        predictGiBtn.textContent = "Analyzing...";
         try {
             const res = await fetch('/scan/predict_gi', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ food_name: foodNameInput.value, nutrients: nutrientData })
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    food_name: foodNameInput.value || "Scanned Food", 
+                    nutrients: nutrientData 
+                })
             });
             const data = await res.json();
             if (res.ok) {
+                // Display GI Result
                 giValueDisplay.textContent = data.gi;
                 giValueDisplay.style.color = data.gi_color;
-                document.querySelector('.ai-message').innerHTML = `💡 <strong>Tip:</strong> ${data.ai_message || 'Balanced meal.'}`;
+
+                // Display GL Result
+                if (glValueDisplay) glValueDisplay.textContent = data.gl;
+
+                document.querySelector('.ai-message').innerHTML = `💡 ${data.ai_message || 'Balanced meal.'}`;
+                
                 if (document.getElementById('insulin-hint')) {
                     document.getElementById('insulin-hint').classList.remove('hidden');
                     document.getElementById('insulin-hint').innerHTML = `🤖 AI Suggests: ${data.insulin_suggestion} units`;
                 }
+                
                 giResultArea.classList.remove('hidden');
                 giPredicted = true;
             }
-        } finally { predictGiBtn.textContent = "Predict GI"; validateFormState(); }
+        } finally { 
+            predictGiBtn.textContent = "Predict GI & GL"; 
+            validateFormState(); 
+        }
     });
+
+    // --- Save Logic ---
 
     if(saveEntryBtn) saveEntryBtn.addEventListener('click', async () => {
         const nutrientData = {};
@@ -224,12 +258,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { alert("Error saving."); }
     });
 
+    // --- Form State Management ---
+
     function validateFormState() {
         const nameFilled = foodNameInput.value.trim() !== '';
         const dataPresent = hasNutrientData(); 
+        
+        // Predict button only needs nutrient data
         predictGiBtn.disabled = !dataPresent;
+
+        // Save button requires name and prediction
         saveEntryBtn.disabled = !(nameFilled && giPredicted);
         saveEntryBtn.textContent = saveEntryBtn.disabled ? "Complete all fields to save" : "Save Entry";
     }
+
     foodNameInput.addEventListener('input', validateFormState);
 });

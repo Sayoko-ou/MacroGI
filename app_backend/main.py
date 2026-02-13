@@ -1,48 +1,45 @@
+# main.py
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
-from modules.gi_predictor import predict_gi_sklearn
+from typing import Optional # Add this for optional fields
+# Import Teagan's second model
+from modules.gi_predictor import predict_gi_sklearn, predict_gl_sklearn 
 from modules.genai_advisor import get_food_fact
 from modules.ocr_engine import extract_nutrients
 from modules.insulin_predictor import predict_insulin_dosage 
 
 app = FastAPI()
 
-# Define the data we expect from Flask
 class AnalysisRequest(BaseModel):
-    food_name: str
-    nutrients: dict # {'sugar': 12, 'fiber': 4 ...}
+    food_name: Optional[str] = "Unknown Food" # Make optional for GI calculation
+    nutrients: dict 
 
-
-@app.post("/scan-food")
-async def scan_food(file: UploadFile = File(...)):
-    image_bytes = await file.read()
-    data = extract_nutrients(image_bytes)
-    return data
-
-
-    
 @app.post("/analyze-food")
 async def analyze_food(request: AnalysisRequest):
-    
-    # --- PROCESS 1: TEAGAN'S MODEL (GI) ---
+    # --- PROCESS 1: TEAGAN'S MODELS (GI & GL) ---
     predicted_gi = predict_gi_sklearn(request.nutrients)
     predicted_gi = max(0, min(100, int(predicted_gi)))
     
+    # NEW: Teagan's 2nd Model for Glycemic Load
+    predicted_gl = predict_gl_sklearn(request.nutrients)
+    predicted_gl = round(float(predicted_gl), 1)
+    
     # --- PROCESS 2: WEICONG'S MODEL (Insulin) ---
-    # It needs the result from Process 1
     suggested_insulin = predict_insulin_dosage(request.nutrients, predicted_gi)
     
     # --- PROCESS 3: GENAI (Advisor) ---
-    ai_tip = get_food_fact(request.food_name, request.nutrients, predicted_gi)
+    # Now passing GL to the advisor as well
+    ai_tip = get_food_fact(request.food_name, request.nutrients, predicted_gi, predicted_gl)
     
-    # Determine Colors
+    # GI Color Logic
     gi_color = '#28a745'
     if predicted_gi >= 55: gi_color = '#ffc107'
     if predicted_gi >= 70: gi_color = '#dc3545'
 
     return {
         "gi": predicted_gi,
+        "gl": predicted_gl, # Returning GL to frontend
         "gi_color": gi_color,
-        "insulin_suggestion": suggested_insulin,  # <--- Sending this to Frontend
+        "insulin_suggestion": suggested_insulin,
         "ai_message": ai_tip
     }
