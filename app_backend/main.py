@@ -1,9 +1,8 @@
-# main.py
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
-from typing import Optional # Add this for optional fields
-# Import Teagan's second model
-from modules.gi_predictor import predict_gi_sklearn, predict_gl_sklearn 
+from typing import Optional
+# Import your AI modules
+from modules.gi_predictor import predict_gi_sklearn
 from modules.genai_advisor import get_food_fact
 from modules.ocr_engine import extract_nutrients
 from modules.insulin_predictor import predict_insulin_dosage 
@@ -11,19 +10,25 @@ from modules.insulin_predictor import predict_insulin_dosage
 app = FastAPI()
 
 class AnalysisRequest(BaseModel):
-    food_name: Optional[str] = "Unknown Food" # Make optional for GI calculation
+    food_name: Optional[str] = "Unknown Food"
     nutrients: dict 
+
+@app.post("/scan-food")
+async def scan_food(file: UploadFile = File(...)):
+    image_bytes = await file.read()
+    data = extract_nutrients(image_bytes)
+    return data
 
 @app.post("/analyze-food")
 async def analyze_food(request: AnalysisRequest):
     # --- PROCESS 1: TEAGAN'S MODELS (GI & GL) ---
+    # Using the tuple unpacking as requested
     predicted_gi, predicted_gl = predict_gi_sklearn(request.nutrients)
     
     # --- PROCESS 2: WEICONG'S MODEL (Insulin) ---
     suggested_insulin = predict_insulin_dosage(request.nutrients, predicted_gi)
     
     # --- PROCESS 3: GENAI (Advisor) ---
-    # Now passing GL to the advisor as well
     ai_tip = get_food_fact(request.food_name, request.nutrients, predicted_gi, predicted_gl)
     
     # GI Color Logic
@@ -33,7 +38,7 @@ async def analyze_food(request: AnalysisRequest):
 
     return {
         "gi": predicted_gi,
-        "gl": predicted_gl, # Returning GL to frontend
+        "gl": predicted_gl, 
         "gi_color": gi_color,
         "insulin_suggestion": suggested_insulin,
         "ai_message": ai_tip

@@ -13,20 +13,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const nutrientTableBody = document.getElementById('nutrient-table-body');
     const predictGiBtn = document.getElementById('predict-gi-btn');
     const giResultArea = document.getElementById('gi-result-area');
-    // UPDATE: New IDs matching HTML
-    const giValueDisplay = document.getElementById('gi');
-    const glValueDisplay = document.getElementById('gl');
+    const giValueDisplay = document.getElementById('gi'); // Matching HTML ID
+    const glValueDisplay = document.getElementById('gl'); // Matching HTML ID
     const saveEntryBtn = document.getElementById('save-entry-btn');
     const addRowBtn = document.getElementById('add-row-btn');
     const retakePrompt = document.getElementById('retake-prompt');
 
-    // UPDATE: Changed 'Energy' to 'Calories', Sugar excluded
+    // CONFIG: Calories enabled, Sugar excluded
     const VALID_NUTRIENTS = ["Calories", "Protein", "Total Fat", "Carbohydrate", "Fiber", "Sodium"];
     let selectedFile = null;
     let giPredicted = false;
 
-    // --- Validation Helpers ---
-
+    // --- Helpers ---
     function hasNutrientData() {
         const values = document.querySelectorAll('.nutrient-val');
         if (values.length === 0) return false;
@@ -44,8 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return VALID_NUTRIENTS.filter(n => !currentLabels.includes(n));
     }
 
-    // --- Image Handling ---
-
+    // --- Handlers ---
     function handleFileSelect(event) {
         const file = event.target.files[0];
         if (file) {
@@ -71,8 +68,6 @@ document.addEventListener('DOMContentLoaded', () => {
         scanNowBtn.classList.add('hidden');
         if(retakePrompt) retakePrompt.classList.add('hidden');
     });
-
-    // --- Scanner Logic ---
 
     if(scanNowBtn) scanNowBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
@@ -103,8 +98,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         VALID_NUTRIENTS.forEach(name => {
             const val = nutrients[name] || 0;
-            // UPDATE: Unit check for Calories
-            let unit = (name === 'Calories') ? 'kcal' : (name === 'Sodium' ? 'mg' : 'g');
+            let unit = 'g';
+            if (name === 'Calories') unit = 'kcal';
+            if (name === 'Sodium') unit = 'mg';
             nutrientTableBody.innerHTML += createRow(name, val, unit, false);
         });
 
@@ -162,8 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- AI Prediction Logic ---
-
     if(predictGiBtn) predictGiBtn.addEventListener('click', async () => {
         if (!hasNutrientData()) {
             alert("Please provide nutrient values before predicting GI.");
@@ -176,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lab = row.querySelector('td strong');
             let name = sel ? sel.value : (lab ? lab.innerText : "");
             if (name) {
-                // UPDATE: name is now "Calories", mapped to "calories" (lowercase) for DB/API
+                // Map Calories -> calories
                 const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
                 nutrientData[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
             }
@@ -194,18 +188,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (res.ok) {
-                // UPDATE: Using new IDs 'gi' and 'gl'
                 giValueDisplay.textContent = data.gi;
                 giValueDisplay.style.color = data.gi_color;
                 if (glValueDisplay) glValueDisplay.textContent = data.gl;
 
                 document.querySelector('.ai-message').innerHTML = `💡 ${data.ai_message || 'Balanced meal.'}`;
-                
                 if (document.getElementById('insulin-hint')) {
                     document.getElementById('insulin-hint').classList.remove('hidden');
                     document.getElementById('insulin-hint').innerHTML = `🤖 AI Suggests: ${data.insulin_suggestion} units`;
                 }
-                
                 giResultArea.classList.remove('hidden');
                 giPredicted = true;
             }
@@ -215,20 +206,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Save Logic ---
-
     if(saveEntryBtn) saveEntryBtn.addEventListener('click', async () => {
         const nutrientData = {};
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
             const sel = row.querySelector('.nutrient-name-select');
             const lab = row.querySelector('td strong');
             let name = sel ? sel.value : (lab ? lab.innerText : "");
-            // UPDATE: Handles "Calories" -> "calories"
             const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
             nutrientData[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
         });
 
-        // UPDATE: Payload now includes calories, gi, and gl
         const payload = {
             foodname: foodNameInput.value,
             mealtype: mealTypeSelect.value,
@@ -252,12 +239,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { alert("Error saving."); }
     });
 
-    // --- Form State Management ---
-
     function validateFormState() {
         const nameFilled = foodNameInput.value.trim() !== '';
         const dataPresent = hasNutrientData(); 
-        
         predictGiBtn.disabled = !dataPresent;
         saveEntryBtn.disabled = !(nameFilled && giPredicted);
         saveEntryBtn.textContent = saveEntryBtn.disabled ? "Complete all fields to save" : "Save Entry";

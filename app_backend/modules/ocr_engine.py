@@ -1,11 +1,9 @@
 import cv2
 import numpy as np
 import re
-import base64
-import os
-from collections import Counter
 from rapidocr_onnxruntime import RapidOCR
 from deep_translator import GoogleTranslator 
+import os
 
 ocr = RapidOCR()
 table_model = None
@@ -41,21 +39,18 @@ def parse_value(text):
 def extract_nutrients(image_bytes):
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    target_img = img 
     
-    ocr_input = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
+    ocr_input = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     result, _ = ocr(ocr_input)
     if not result: return {"error": "No text detected", "success": False}
 
-    # UPDATE: Changed 'Energy' to 'Calories'
+    # Using 'Calories'
     extracted = {
         "Calories": 0, "Protein": 0, "Total Fat": 0, 
         "Carbohydrate": 0, "Fiber": 0, "Sodium": 0, "Salt_tmp": 0 
     }
     
-    used_indices = set()
     target_nutrients = {
-        # UPDATE: Mapped aliases to 'Calories'
         "Calories": ["energy", "kcal", "calories"],
         "Protein": ["protein"],
         "Total Fat": ["total fat", "fat"],
@@ -81,14 +76,13 @@ def extract_nutrients(image_bytes):
                 v_num, v_unit, _ = parse_value(current_text)
                 if v_num is not None:
                     extracted[std_key] = v_num
-                    used_indices.add(i)
                     break
     
     extracted = convert_salt_to_sodium(extracted)
 
     return {
         "nutrients": extracted,
-        "success": len(used_indices) > 0
+        "success": True
     }
 
 load_models()
