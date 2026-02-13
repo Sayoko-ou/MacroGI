@@ -21,8 +21,8 @@ async def scan_food(file: UploadFile = File(...)):
 
 @app.post("/analyze-food")
 async def analyze_food(request: AnalysisRequest):
-    # --- PROCESS 1: TEAGAN'S MODELS (GI & GL) ---
-    # Using the tuple unpacking as requested
+
+    # --- PROCESS 1: TEAGAN'S MODEL (GI) ---
     predicted_gi, predicted_gl = predict_gi_sklearn(request.nutrients)
     
     # --- PROCESS 2: WEICONG'S MODEL (Insulin) ---
@@ -38,7 +38,7 @@ async def analyze_food(request: AnalysisRequest):
 
     return {
         "gi": predicted_gi,
-        "gl": predicted_gl, 
+        "gl": predicted_gl,
         "gi_color": gi_color,
         "insulin_suggestion": suggested_insulin,
         "ai_message": ai_tip
