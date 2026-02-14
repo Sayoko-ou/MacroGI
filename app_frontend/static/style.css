@@ -514,8 +514,10 @@ body {
     gap: 30px;
     margin-bottom: 30px;
     padding: 20px;
-    background: var(--nav-blue);
+    background: var(--white);
     border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.06);
 }
 
 .dashboard-nav-tabs {
@@ -524,7 +526,7 @@ body {
 }
 
 .dashboard-period-label {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--text-dark);
     font-weight: 600;
     font-size: 1rem;
     letter-spacing: 0.5px;
@@ -535,7 +537,7 @@ body {
 }
 
 .nav-tab {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-grey);
     text-decoration: none;
     font-weight: 700;
     font-size: 14px;
@@ -546,8 +548,8 @@ body {
 }
 
 .nav-tab:hover, .nav-tab.active {
-    color: white;
-    border-bottom: 2px solid white;
+    color: var(--text-dark);
+    border-bottom: 2px solid var(--text-dark);
 }
 
 .dashboard-header {
@@ -568,9 +570,9 @@ body {
 
 .view-btn {
     padding: 10px 24px;
-    border: 2px solid var(--nav-blue);
+    border: 2px solid var(--text-dark);
     background: white;
-    color: var(--nav-blue);
+    color: var(--text-dark);
     border-radius: 8px;
     font-weight: 700;
     cursor: pointer;
@@ -586,15 +588,15 @@ body {
 }
 
 .view-btn:hover {
-    background: #f0f7ff;
+    background: #e8e8e8;
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(57, 119, 212, 0.15);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 .view-btn.active {
-    background: var(--nav-blue);
+    background: var(--text-dark);
     color: white;
-    box-shadow: 0 2px 8px rgba(57, 119, 212, 0.25);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
 }
 
 .dashboard-view {
@@ -934,12 +936,12 @@ body {
     padding: 15px;
     background: #f8f9fa;
     border-radius: 12px;
-    border-left: 4px solid var(--nav-blue);
+    border-left: 4px solid var(--text-dark);
 }
 
 .timeline-time {
     font-weight: 700;
-    color: var(--nav-blue);
+    color: var(--text-dark);
     min-width: 60px;
     font-size: 14px;
 }
@@ -957,7 +959,7 @@ body {
 }
 
 .timeline-gl {
-    background: var(--nav-blue);
+    background: var(--text-dark);
     color: white;
     padding: 4px 12px;
     border-radius: 20px;
@@ -1006,12 +1008,12 @@ body {
 
 .comment-box:focus {
     outline: none;
-    border-color: var(--nav-blue);
+    border-color: var(--text-dark);
 }
 
 .save-comment-btn {
     padding: 12px 30px;
-    background: var(--nav-blue);
+    background: var(--text-dark);
     color: white;
     border: none;
     border-radius: 8px;
@@ -1021,7 +1023,7 @@ body {
 }
 
 .save-comment-btn:hover {
-    background: var(--highlight-blue);
+    background: #555;
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
@@ -1029,7 +1031,7 @@ body {
 .view-dashboard-btn {
     display: inline-block;
     padding: 15px 40px;
-    background: var(--nav-blue);
+    background: var(--text-dark);
     color: white;
     text-decoration: none;
     border-radius: 50px;
@@ -1041,7 +1043,7 @@ body {
 }
 
 .view-dashboard-btn:hover {
-    background: var(--highlight-blue);
+    background: #555;
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
@@ -1147,5 +1149,4 @@ body {
     border-radius: 8px;
     border: 1px solid #ffeeba;
     font-size: 0.85em;
-}
-}
+}}

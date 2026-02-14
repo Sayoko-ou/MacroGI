@@ -151,8 +151,16 @@ def dashboard_page():
             selected_week_monday = selected_week_monday - timedelta(days=selected_week_monday.weekday())
         except ValueError:
             selected_week_monday = this_week_monday
+    # Week window: center (default), start (selected first), end (selected last)
+    week_window = request.args.get('week_window', 'center')
+    if week_window == 'start':
+        week_offsets = range(0, 5)   # selected, +1, +2, +3, +4 weeks
+    elif week_window == 'end':
+        week_offsets = range(-4, 1)  # -4..0 so selected is last
+    else:
+        week_offsets = range(-2, 3) # 2 before, selected, 2 after
     weeks = []
-    for i in range(-2, 3):  # 2 before, selected, 2 after
+    for i in week_offsets:
         week_start = selected_week_monday + timedelta(days=i * 7)
         week_end = week_start + timedelta(days=6)
         week_num_label = week_start.isocalendar()[1]
@@ -165,8 +173,7 @@ def dashboard_page():
             'is_selected': week_start == selected_week_monday
         })
     
-    # Generate days (last 7 days)
-    # Check if a specific date was requested for daily view
+    # Generate days: center (default), start (selected first), end (selected last)
     date_str = request.args.get('date')
     selected_date = today
     if date_str and view == 'daily':
@@ -175,10 +182,17 @@ def dashboard_page():
         except ValueError:
             selected_date = today
     
+    day_window = request.args.get('day_window', 'center')
+    if day_window == 'start':
+        day_offsets = range(0, 7)    # selected, +1, ..., +6
+    elif day_window == 'end':
+        day_offsets = range(-6, 1)   # -6..0 so selected is last
+    else:
+        day_offsets = range(-3, 4)  # 3 before, selected, 3 after
+    
     days = []
-    # Show 7 days centered around selected date (or today)
     base_date = selected_date if view == 'daily' else today
-    for i in range(-3, 4):  # 3 days before, selected day, 3 days after
+    for i in day_offsets:
         d = base_date + timedelta(days=i)
         days.append({
             'day_name': d.strftime('%a').upper(),

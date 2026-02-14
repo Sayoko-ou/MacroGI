@@ -32,6 +32,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load data from Supabase API and render charts
     refreshCurrentView();
     
+    // After a "shift" navigation we pass scroll=left; align the visible set to the left and clean URL
+    applyScrollAlignFromUrl();
+    
     // Auto-refresh: fetch fresh data from Supabase periodically
     refreshTimer = setInterval(refreshCurrentView, AUTO_REFRESH_INTERVAL_MS);
 });
@@ -132,42 +135,113 @@ function initializeViewSwitching() {
     });
 }
 
-// Week Selector
+// Align period selector to the left when URL has scroll=left (after a "shift" navigation).
+function applyScrollAlignFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('scroll') !== 'left') return;
+    const activeView = document.querySelector('.dashboard-view.active');
+    if (!activeView) return;
+    const container = activeView.id === 'weekly-view'
+        ? document.querySelector('.week-selector')
+        : document.querySelector('.day-selector');
+    if (container) {
+        container.scrollLeft = 0;
+    }
+    params.delete('scroll');
+    const newSearch = params.toString();
+    const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+    history.replaceState({}, '', newUrl);
+}
+
+// Scroll the period selector so the active button is at left (direction > 0) or right (direction < 0).
+function scrollPeriodSelectorIntoView(direction) {
+    const activeView = document.querySelector('.dashboard-view.active');
+    if (!activeView) return;
+    const viewId = activeView.id;
+    const container = viewId === 'weekly-view' ? document.querySelector('.week-selector') : document.querySelector('.day-selector');
+    const activeBtn = container ? container.querySelector('.week-btn.active, .day-btn.active') : null;
+    if (!container || !activeBtn) return;
+    const maxScroll = container.scrollWidth - container.clientWidth;
+    if (maxScroll <= 0) return;
+    if (direction > 0) {
+        container.scrollLeft = activeBtn.offsetLeft;
+    } else {
+        container.scrollLeft = Math.max(0, activeBtn.offsetLeft - (container.clientWidth - activeBtn.offsetWidth));
+    }
+}
+
+// Week Selector: leftmost/rightmost click = shift to previous/next set (full nav); else in-place select.
 function initializeWeekSelector() {
-    const weekButtons = document.querySelectorAll('.week-btn');
-    weekButtons.forEach(btn => {
+    const weekButtons = Array.from(document.querySelectorAll('.week-btn'));
+    const lastIndex = weekButtons.length - 1;
+    weekButtons.forEach((btn, index) => {
         btn.addEventListener('click', function() {
-            weekButtons.forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            updatePeriodLabel();
             const startIso = this.getAttribute('data-start-iso');
             const endIso = this.getAttribute('data-end-iso');
+            if (!startIso || !endIso) return;
+            if (index === 0) {
+                window.location.href = '/dashboard?view=weekly&week_start=' + startIso + '&week_window=end&scroll=left';
+                return;
+            }
+            if (index === lastIndex) {
+                window.location.href = '/dashboard?view=weekly&week_start=' + startIso + '&week_window=start&scroll=left';
+                return;
+            }
+            setActiveWeek(weekButtons, this);
+            updatePeriodLabel();
+            scrollPeriodSelectorIntoView(1);
             loadWeeklyData(this.getAttribute('data-week'), startIso, endIso);
         });
     });
 }
 
-// Day Selector - click a date to show that day's data (in-place, no page reload)
+function setActiveWeek(weekButtons, activeBtn) {
+    weekButtons.forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+    });
+    activeBtn.classList.add('active');
+    activeBtn.setAttribute('aria-pressed', 'true');
+}
+
+// Day Selector: leftmost/rightmost click = shift to previous/next set (full nav); else in-place select.
 function initializeDaySelector() {
-    const dayButtons = document.querySelectorAll('.day-btn');
-    dayButtons.forEach(btn => {
+    const dayButtons = Array.from(document.querySelectorAll('.day-btn'));
+    const lastIndex = dayButtons.length - 1;
+    const todayStr = new Date().toISOString().split('T')[0];
+    dayButtons.forEach((btn, index) => {
         btn.addEventListener('click', function() {
             const date = this.getAttribute('data-date');
             if (!date) return;
-            dayButtons.forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
+            if (index === 0) {
+                window.location.href = '/dashboard?view=daily&date=' + date + '&day_window=end&scroll=left';
+                return;
+            }
+            if (index === lastIndex && date < todayStr) {
+                window.location.href = '/dashboard?view=daily&date=' + date + '&day_window=start&scroll=left';
+                return;
+            }
+            setActiveDay(dayButtons, this);
             updatePeriodLabel();
+            scrollPeriodSelectorIntoView(1);
             loadDailyData(date);
         });
     });
 }
 
-// Arrow navigation: move to next/previous week or day within visible list (in-place).
-// Only do full page navigation when at the edge (no next/prev button).
+function setActiveDay(dayButtons, activeBtn) {
+    dayButtons.forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+    });
+    activeBtn.classList.add('active');
+    activeBtn.setAttribute('aria-pressed', 'true');
+}
+
+// Arrow navigation: in-place move within list, or full page "shift" at edge (set aligned left).
 function navigatePeriod(direction) {
     const activeView = document.querySelector('.dashboard-view.active');
     if (!activeView) return;
-
     const viewId = activeView.id;
 
     if (viewId === 'weekly-view') {
@@ -177,9 +251,9 @@ function navigatePeriod(direction) {
         const nextIndex = activeIndex + direction;
         if (nextIndex >= 0 && nextIndex < weekButtons.length) {
             const btn = weekButtons[nextIndex];
-            weekButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            setActiveWeek(weekButtons, btn);
             updatePeriodLabel();
+            scrollPeriodSelectorIntoView(direction);
             const startIso = btn.getAttribute('data-start-iso');
             const endIso = btn.getAttribute('data-end-iso');
             if (startIso && endIso) loadWeeklyData(null, startIso, endIso);
@@ -190,7 +264,8 @@ function navigatePeriod(direction) {
             const d = new Date(startIso + 'T12:00:00');
             d.setDate(d.getDate() + direction * 7);
             const newStartIso = d.toISOString().split('T')[0];
-            window.location.href = '/dashboard?view=weekly&week_start=' + newStartIso;
+            const windowParam = direction > 0 ? 'week_window=start' : 'week_window=end';
+            window.location.href = '/dashboard?view=weekly&week_start=' + newStartIso + '&' + windowParam + '&scroll=left';
         }
     } else if (viewId === 'daily-view') {
         const dayButtons = Array.from(document.querySelectorAll('.day-btn'));
@@ -199,9 +274,9 @@ function navigatePeriod(direction) {
         const nextIndex = activeIndex + direction;
         if (nextIndex >= 0 && nextIndex < dayButtons.length) {
             const btn = dayButtons[nextIndex];
-            dayButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            setActiveDay(dayButtons, btn);
             updatePeriodLabel();
+            scrollPeriodSelectorIntoView(direction);
             const dateStr = btn.getAttribute('data-date');
             if (dateStr) loadDailyData(dateStr);
         } else {
@@ -211,7 +286,8 @@ function navigatePeriod(direction) {
             const date = new Date(currentDate + 'T12:00:00');
             date.setDate(date.getDate() + direction);
             const newDateStr = date.toISOString().split('T')[0];
-            window.location.href = '/dashboard?view=daily&date=' + newDateStr;
+            const windowParam = direction > 0 ? 'day_window=start' : 'day_window=end';
+            window.location.href = '/dashboard?view=daily&date=' + newDateStr + '&' + windowParam + '&scroll=left';
         }
     }
 }
