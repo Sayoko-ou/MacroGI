@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Elements ---
+    // Grab all the UI components from the HTML so for manipulation.
     const fileInput = document.getElementById('file-upload');
     const cameraInput = document.getElementById('camera-upload');
     const previewContainer = document.getElementById('image-preview-container');
@@ -19,7 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const addRowBtn = document.getElementById('add-row-btn');
     const retakePrompt = document.getElementById('retake-prompt');
 
-    // CONFIG: Calories enabled, Sugar excluded
+    // CONFIG: My database and models expect these specific nutrients. 
+    // I excluded Sugar here because it's usually bundled into Carbohydrates for my GI calculation.
     const VALID_NUTRIENTS = ["Calories", "Protein", "Total Fat", "Carbohydrate", "Fiber", "Sodium", "Salt"];
     let selectedFile = null;
     let giPredicted = false;
@@ -27,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Validation Helpers ---
 
     function hasNutrientData() {
+        // I don't want users predicting GI on an empty table, so I check if at least one value is > 0.
         const values = document.querySelectorAll('.nutrient-val');
         if (values.length === 0) return false;
         // Ensure at least one value is > 0
@@ -34,9 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getAvailableNutrients() {
+        /* This is for the "Add Row" feature. If the OCR missed a nutrient, the user can add it.
+        But I only want to show them options that aren't ALREADY in the table.
+        */
         const currentLabels = [];
         
-        // 1. Gather all currently displayed nutrients
+        // 1. Scrape the table to see what's currently displayed
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
             const staticLabel = row.querySelector('td strong');
             const select = row.querySelector('.nutrient-name-select');
@@ -47,7 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Filter out what is already in the table
         let available = VALID_NUTRIENTS.filter(n => !currentLabels.includes(n));
 
-        // 3. MUTUAL EXCLUSION: Prevent having both Salt and Sodium
+        // 3. MUTUAL EXCLUSION: UK labels use "Salt", US labels use "Sodium".
+        // Having both in the table makes no sense and breaks the DB, so I hide one if the other is present.
         if (currentLabels.includes("Salt")) {
             available = available.filter(n => n !== "Sodium");
         }
@@ -61,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Image Handling ---
 
     function handleFileSelect(event) {
+        // Swaps out the upload buttons for a preview of the image they just took/uploaded.
         const file = event.target.files[0];
         if (file) {
             selectedFile = file;
@@ -79,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(cameraInput) cameraInput.addEventListener('change', handleFileSelect);
 
     if(clearBtn) clearBtn.addEventListener('click', () => {
+        // Resets the UI if they want to take a different photo.
         selectedFile = null;
         previewContainer.classList.add('hidden');
         initialActions.classList.remove('hidden');
@@ -86,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(retakePrompt) retakePrompt.classList.add('hidden');
     });
 
-    // --- Scanner Logic ---
+    // --- Scanner Logic (Talking to FastAPI) ---
 
     if(scanNowBtn) scanNowBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
@@ -96,12 +105,16 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('file', selectedFile);
 
         try {
+            // Send the image to my FastAPI microservice to run the RapidOCR script
             const response = await fetch('/scan/ocr', { method: 'POST', body: formData });
             const data = await response.json();
+
+            // If the OCR completely fails to find text, show a prompt asking them to retake the photo.
             if (data.success === false) retakePrompt.classList.remove('hidden');
             else retakePrompt.classList.add('hidden');
             populateResults(data);
-        } catch (error) { alert('Scanner Error'); }
+        } catch (error) { 
+            alert('Scanner Error: Could not reach the AI microservice.'); }
         finally {
             loadingSpinner.classList.add('hidden');
             scanNowBtn.classList.remove('hidden');
@@ -109,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function populateResults(data) {
+        // Show the image with the bounding boxes drawn by OpenCV
         if (data.annotated_image) imagePreview.src = "data:image/jpeg;base64," + data.annotated_image;
         if(foodNameInput) foodNameInput.value = data.suggested_name || '';
         
@@ -116,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const nutrients = data.nutrients || {};
         
         // Build the table ONLY with what the AI found
+        // This keeps the UI clean instead of showing a bunch of 0g rows.
         VALID_NUTRIENTS.forEach(name => {
             const val = nutrients[name];
             // Only show row if AI found a value > 0
@@ -132,6 +147,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createRow(label, value, unit, isNew = false) {
+        // Generates the HTML for a single nutrient row. 
+        // If it's manually added by the user, it becomes a dropdown menu instead of text.
         let labelHtml = `<strong>${label}</strong>`;
         if (isNew) {
             const available = getAvailableNutrients();
@@ -161,12 +178,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function attachTableListeners() {
+        // Re-attach event listeners every time a row is added or deleted.
         document.querySelectorAll('.nutrient-val, .nutrient-name-select').forEach(input => {
             input.oninput = (e) => {
-                // Prevent negative values
+                // Front-end validation to stop negative numbers
                 if (e.target.type === 'number' && parseFloat(e.target.value) < 0) {
                     e.target.value = 0;
                 }
+
+                // If they change a number, the old GI prediction is invalid, so hide it.
                 giPredicted = false;
                 if(giResultArea) giResultArea.classList.add('hidden');
                 validateFormState();
@@ -182,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- AI Prediction Logic ---
+    // --- AI Prediction Logic (GI, GL, Insulin) ---
 
     if(predictGiBtn) predictGiBtn.addEventListener('click', async () => {
         if (!hasNutrientData()) {
@@ -190,12 +210,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Scrape whatever is currently in the HTML table so user edits are respected.
         const nutrientData = {};
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
             const sel = row.querySelector('.nutrient-name-select');
             const lab = row.querySelector('td strong');
             let name = sel ? sel.value : (lab ? lab.innerText : "");
             if (name) {
+                // Map the pretty UI names back to the keys my database/models expect.
                 const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
                 nutrientData[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
             }
@@ -203,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         predictGiBtn.textContent = "Analyzing...";
         try {
+            // Call the second FastAPI endpoint to run the GI and Insulin models
             const res = await fetch('/scan/predict_gi', {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' },
@@ -213,19 +236,22 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (res.ok) {
+                // Update the UI with the AI's results
                 giValueDisplay.textContent = data.gi;
                 giValueDisplay.style.color = data.gi_color;
                 if (glValueDisplay) glValueDisplay.textContent = data.gl;
 
+                // Show the Generative AI Tip
                 document.querySelector('.ai-message').innerHTML = `💡 ${data.ai_message || 'Balanced meal.'}`;
                 
+                // Show the Insulin prediction
                 if (document.getElementById('insulin-hint')) {
                     document.getElementById('insulin-hint').classList.remove('hidden');
                     document.getElementById('insulin-hint').innerHTML = `🤖 AI Suggests: ${data.insulin_suggestion} units`;
                 }
                 
                 giResultArea.classList.remove('hidden');
-                giPredicted = true;
+                giPredicted = true; // Unlocks the save button
             }
         } finally { 
             predictGiBtn.textContent = "Predict GI & GL"; 
@@ -233,10 +259,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Save Logic (THE CORRECT ONE) ---
+    // --- Save Logic ---
 
     if(saveEntryBtn) saveEntryBtn.addEventListener('click', async () => {
-    // 1. Initialize payload with 0s
+    // 1. Initialize payload with 0s to prevent null errors in Supabase
     const payload = {
         foodname: foodNameInput.value,
         mealtype: mealTypeSelect.value,
@@ -248,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let saltValue = 0;
 
-    // 2. Scrape the table
+    // 2. Scrape the table one last time
     document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
         const sel = row.querySelector('.nutrient-name-select');
         const lab = row.querySelector('td strong');
@@ -271,13 +297,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 3. CONVERSION: If Salt was provided and Sodium is 0, convert it.
-    // Formula: Salt (g) / 2.5 * 1000 = Sodium (mg)
+    // 3. CONVERSION: My database only stores Sodium (in mg). 
+    // If the label gave us Salt (in grams), I have to do the math to convert it here.
     if (saltValue > 0 && payload.sodium === 0) {
         payload.sodium = Math.round((saltValue / 2.5) * 1000);
     }
 
-    // 4. Send to backend
+    // 4. Send to the Flask backend to safely save to Supabase
     try {
         const res = await fetch('/scan/save_entry', {
             method: 'POST',
@@ -289,7 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (result.status === "success") {
                 alert("Entry Saved Successfully!");
-                window.location.href = "/";
+                window.location.href = "/"; // Redirect home after saving
             } else {
                 alert("Error: " + result.error);
             }
@@ -304,7 +330,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const nameFilled = foodNameInput.value.trim() !== '';
         const dataPresent = hasNutrientData(); 
         
+        // Disable GI Prediction if there's no data
         predictGiBtn.disabled = !dataPresent;
+
+        // Force the user to name the food AND run the GI prediction before they can save it.
+        // This is part of my "Human in the Loop" ethical design.
         saveEntryBtn.disabled = !(nameFilled && giPredicted);
         saveEntryBtn.textContent = saveEntryBtn.disabled ? "Complete all fields to save" : "Save Entry";
     }
