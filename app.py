@@ -409,6 +409,7 @@ def api_daily_data():
         return jsonify({"error": str(e)}), 500
 
 
+
 @app.route('/food-diary')
 def food_diary():
     current_user_id = session.get('user_id') 
@@ -422,7 +423,7 @@ def food_diary():
     food_name = request.args.get('food', '') 
     time_filter = request.args.get('time', 'all')
     gi_filter = request.args.get('gi', 'all').lower()
-    gi_max = request.args.get('gi_max')
+    gi_max = request.args.get('gi_max', '100') # Added default '100'
     meal_type = request.args.get('meal', 'all').lower()
     sort_option = request.args.get('sort', 'newest')
 
@@ -453,11 +454,11 @@ def food_diary():
             start_date = now - timedelta(days=30)
         params['created_at'] = f'gte.{start_date.isoformat()}'
 
-    # 4. Food Name Search (Missing in your draft)
+    # 4. Food Name Search
     if food_name:
         params['foodname'] = f'ilike.*{food_name}*'
 
-    # 5. GI Logic (Hybrid: Dropdown vs Slider)
+    # 5. GI Logic (Hybrid)
     if gi_filter != 'all' and gi_filter != 'custom':
         if gi_filter == 'low':
             params['gi'] = 'lte.55'
@@ -465,7 +466,7 @@ def food_diary():
             params['gi'] = 'and(gt.55,lt.70)'
         elif gi_filter == 'high':
             params['gi'] = 'gte.70'
-    elif gi_max: # If slider is used
+    elif gi_max: 
         params['gi'] = f'lte.{gi_max}'
 
     # 6. Meal Type
@@ -492,13 +493,17 @@ def food_diary():
             'next_num': page + 1
         }
 
+        # Create a copy of the URL parameters and remove the page key
+        url_params = request.args.to_dict()
+        url_params.pop('page', None) 
+
         return render_template('food_diary.html', 
                             entries=entries, 
                             pagination=pagination,
                             current_sort=sort_option,   
                             current_meal=meal_type,     
-                            current_time=time_filter)
-    
+                            current_time=time_filter,
+                            url_params=url_params)
 
     except Exception as e:
         print(f"Route Error: {e}")
