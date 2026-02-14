@@ -5,6 +5,7 @@ import requests
 import time
 import os
 from dotenv import load_dotenv
+import subprocess
 
 # all imports from backend
 from app_backend.database import db
@@ -464,4 +465,24 @@ def get_nutrients(entry_id):
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+
+    print("Starting FastAPI Backend on port 8000...")
+    backend_process = subprocess.Popen(
+        [
+            "uvicorn", 
+            "main:app",          # 1. Changed this (removed 'app_backend.')
+            "--host", "127.0.0.1", 
+            "--port", "8000", 
+            "--reload"
+        ],
+        cwd="app_backend"        # 2. ADDED THIS: Tells Uvicorn to start inside the backend folder!
+    )
+
+    try:
+        # LAUNCH FLASK FRONTEND
+        print("Starting Flask Frontend on port 5000...")
+        app.run(debug=True, port=5000, use_reloader=False) 
+    finally:
+        # CLEANUP: Kill the backend process when Flask stops
+        print("Shutting down backend...")
+        backend_process.terminate()
