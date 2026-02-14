@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const retakePrompt = document.getElementById('retake-prompt');
 
     // CONFIG: Calories enabled, Sugar excluded
-    const VALID_NUTRIENTS = ["Calories", "Protein", "Total Fat", "Carbohydrate", "Fiber", "Sodium"];
+    const VALID_NUTRIENTS = ["Calories", "Protein", "Total Fat", "Carbohydrate", "Fiber", "Sodium", "Salt"];
     let selectedFile = null;
     let giPredicted = false;
 
@@ -35,13 +35,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getAvailableNutrients() {
         const currentLabels = [];
+        
+        // 1. Gather all currently displayed nutrients
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
             const staticLabel = row.querySelector('td strong');
             const select = row.querySelector('.nutrient-name-select');
             if (staticLabel) currentLabels.push(staticLabel.innerText.trim());
             if (select) currentLabels.push(select.value.trim());
         });
-        return VALID_NUTRIENTS.filter(n => !currentLabels.includes(n));
+
+        // 2. Filter out what is already in the table
+        let available = VALID_NUTRIENTS.filter(n => !currentLabels.includes(n));
+
+        // 3. MUTUAL EXCLUSION: Prevent having both Salt and Sodium
+        if (currentLabels.includes("Salt")) {
+            available = available.filter(n => n !== "Sodium");
+        }
+        if (currentLabels.includes("Sodium")) {
+            available = available.filter(n => n !== "Salt");
+        }
+
+        return available;
     }
 
     // --- Image Handling ---
@@ -222,28 +236,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Save Logic (THE CORRECT ONE) ---
 
     if(saveEntryBtn) saveEntryBtn.addEventListener('click', async () => {
-        // 1. Initialize EVERYTHING to 0 based on your database schema
-        const payload = {
-            foodname: foodNameInput.value,
-            mealtype: mealTypeSelect.value,
-            insulin: parseFloat(document.getElementById('insulin-input').value) || 0,
-            calories: 0, 
-            carbs: 0,
-            protein: 0,
-            fat: 0,
-            sodium: 0,
-            fiber: 0,
-            gi: parseFloat(giValueDisplay.textContent) || 0,
-            gl: parseFloat(glValueDisplay.textContent) || 0
-        };
+    // 1. Initialize payload with 0s
+    const payload = {
+        foodname: foodNameInput.value,
+        mealtype: mealTypeSelect.value,
+        insulin: parseFloat(document.getElementById('insulin-input').value) || 0,
+        calories: 0, carbs: 0, protein: 0, fat: 0, sodium: 0, fiber: 0,
+        gi: parseFloat(document.getElementById('gi').textContent) || 0,
+        gl: parseFloat(document.getElementById('gl').textContent) || 0
+    };
 
-        // 2. Scrape the table and overwrite the zeros with real data
-        document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
-            const sel = row.querySelector('.nutrient-name-select');
-            const lab = row.querySelector('td strong');
-            let name = sel ? sel.value : (lab ? lab.innerText : "");
-            
-            // Match the keys in your payload
+    let saltValue = 0;
+
+    // 2. Scrape the table
+    document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
+        const sel = row.querySelector('.nutrient-name-select');
+        const lab = row.querySelector('td strong');
+        let name = sel ? sel.value : (lab ? lab.innerText : "");
+        let val = parseFloat(row.querySelector('.nutrient-val').value) || 0;
+
+        if (name === "Salt") {
+            saltValue = val;
+        } else {
             const keyMap = {
                 "Calories": "calories",
                 "Protein": "protein",
@@ -252,20 +266,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 "Fiber": "fiber",
                 "Sodium": "sodium"
             };
-
             const dbKey = keyMap[name];
-            if (dbKey) {
-                payload[dbKey] = parseFloat(row.querySelector('.nutrient-val').value) || 0;
-            }
-        });
+            if (dbKey) payload[dbKey] = val;
+        }
+    });
 
-        // 3. Send the complete payload (with zeros for missing items)
-        try {
-            const res = await fetch('/scan/save_entry', {
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+    // 3. CONVERSION: If Salt was provided and Sodium is 0, convert it.
+    // Formula: Salt (g) / 2.5 * 1000 = Sodium (mg)
+    if (saltValue > 0 && payload.sodium === 0) {
+        payload.sodium = Math.round((saltValue / 2.5) * 1000);
+    }
+
+    // 4. Send to backend
+    try {
+        const res = await fetch('/scan/save_entry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        // ... rest of your save logic
             const result = await res.json();
             
             if (result.status === "success") {

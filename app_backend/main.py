@@ -58,7 +58,6 @@ async def analyze_food(request: AnalysisRequest):
     
     # --- PROCESS 1: TEAGAN'S MODEL (GI) ---
     predicted_gi = predict_gi_sklearn(normalized_nutrients)
-    predicted_gi = max(0, min(100, int(predicted_gi)))
     
     # --- PROCESS 2: CALCULATE GL (Glycemic Load) = (GI * carb) / 100 ---
     # Get carbohydrate value (handle different key variations)
@@ -72,7 +71,16 @@ async def analyze_food(request: AnalysisRequest):
     suggested_insulin = predict_insulin_dosage(normalized_nutrients, predicted_gi)
     
     # --- PROCESS 4: GENAI (Advisor) ---
-    ai_tip = get_food_fact(request.food_name, normalized_nutrients, predicted_gi)
+    ai_tip = get_food_fact(request.food_name, normalized_nutrients, predicted_gi, predicted_gl)
+
+    
+    return {
+        "gi": int(predicted_gi),
+        "gl": int(predicted_gl),
+        "gi_color": "#28a745" if predicted_gi < 55 else "#dc3545",
+        "ai_message": ai_tip
+    }
+
 @app.post("/analyze-food")
 async def analyze_food(request: AnalysisRequest):
 

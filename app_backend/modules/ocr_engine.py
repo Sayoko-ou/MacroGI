@@ -143,10 +143,6 @@ def translate_if_foreign(text):
         except: return text.lower()
     return text.lower()
 
-def convert_salt_to_sodium(extracted):
-    salt = extracted.pop("Salt_tmp", 0) 
-    if salt > 0 and extracted.get("Sodium", 0) == 0:
-        extracted["Sodium"] = round((salt / 2.5) * 1000, 2)
 
 # ==============================================================================
 # 3. DOMINANT COLUMN CLUSTERING (RESTORED LOGIC)
@@ -240,7 +236,7 @@ def extract_nutrients(image_bytes):
     # Initializing with 0s to ensure the frontend always gets the expected keys
     extracted = {
         "Calories": 0, "Protein": 0, "Total Fat": 0, 
-        "Carbohydrate": 0, "Fiber": 0, "Sodium": 0, "Salt_tmp": 0 
+        "Carbohydrate": 0, "Fiber": 0, "Sodium": 0, "Salt": 0 
     }
     used_indices = set()
     candidates_pool = {}
@@ -253,7 +249,7 @@ def extract_nutrients(image_bytes):
         "Carbohydrate": ["carbohydrate", "carb", "carbs"],
         "Fiber": ["fibre", "fiber", "dietary fiber"],
         "Sodium": ["sodium"],
-        "Salt_tmp": ["salt"]
+        "Salt": ["salt"]
     }
 
     # Pass 1: Find Labels and their Candidates
@@ -299,10 +295,7 @@ def extract_nutrients(image_bytes):
         if 'idx' in cand: 
             used_indices.add(cand['idx'])
 
-    # 5. Salt to Sodium Conversion
-    convert_salt_to_sodium(extracted)
-
-    # 6. DRAW VISUALS
+    # 5. DRAW VISUALS
     annotated_b64 = draw_visuals(target_img, result, used_indices)
 
     return {

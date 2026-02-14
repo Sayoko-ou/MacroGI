@@ -6,6 +6,7 @@ import time
 import os
 from dotenv import load_dotenv
 from app_backend.database import db
+import json
 
 load_dotenv()
 
@@ -202,8 +203,7 @@ def dashboard_page():
                          daily_data=daily_data)
 
 
-# --- NEW API ROUTES (Simulating Microservices) ---
-# --- API ROUTES ---
+# --- API ROUTES (Simulating Microservices) ---
 
 @app.route('/scan/ocr', methods=['POST'])
 def api_ocr_sim():
@@ -231,9 +231,20 @@ def api_predict_gi_sim():
     data = request.json
     try:
         response = requests.post("http://127.0.0.1:8000/analyze-food", json=data, timeout=3)
-        if response.status_code == 200: return jsonify(response.json())
+        if response.status_code == 200: 
+            api_data = response.json()
+
+            # DEBUG: WHAT IS FASTAPI SENDING?
+            print("\n" + "="*40)
+            print("DEBUG: FASTAPI RAW RESPONSE")
+            print(api_data)
+            print("="*40 + "\n")
+            
+            return jsonify(response.json())
     except requests.exceptions.ConnectionError:
         pass
+
+    
 
     # FALLBACK: No sugar dependency
     return jsonify({
@@ -271,6 +282,13 @@ def api_save_entry_sim():
             "gl": data.get('gl', 0),
             "created_at": timestamp
         }
+
+
+        # DEBUG: PRINT TO TERMINAL
+        print("\n" + "="*40)
+        print("DEBUG: PAYLOAD ABOUT TO BE SAVED")
+        print(json.dumps(insert_data, indent=4))
+        print("="*40 + "\n")
 
         # 3. Database Execution
         # Use the sanitized insert_data dict here
