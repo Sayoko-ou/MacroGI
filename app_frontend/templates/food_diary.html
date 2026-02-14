@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='food_diary.css') }}">
+
+<div class="diary-container">
+    <div class="diary-main">
+        <div class="entry-header-card">
+            <div class="input-group">
+                <label>Food Name</label>
+                <input type="text" id="foodSearch" placeholder="Enter food name" value="{{ request.args.get('food', '') }}">
+            </div>
+            <div class="input-group">
+                <label>Sort By</label>
+                <select id="sortBy" class="modern-select">
+                    <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>Newest First</option>
+                    <option value="oldest" {% if current_sort =='oldest' %}selected{% endif %}>Oldest First</option>
+                    <option value="highest_gi" {% if current_sort == 'highest_gi' %}selected{% endif %}>Highest GI</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="diary-table">
+                <thead>
+                    <tr>
+                        <th>FOOD NAME</th>
+                        <th>DATE</th> <th>TIME</th> <th>MEAL TYPE</th>
+                        <th>GI</th>
+                        <th>INSULIN</th>
+                    </tr>
+                </thead>
+                <tbody id="diaryBody">
+                    {% for entry in entries %}
+                    <tr data-id="{{ entry.id }}" style="cursor: pointer;">
+                        <td><strong>{{ entry.foodname }}</strong></td>
+                        <td>{{ entry.display_date }}</td> <td class="text-muted">{{ entry.display_time }}</td> <td>{{ entry.mealtype }}</td>
+                        <td>
+                            <span class="gi-badge {% if entry.gi <= 55 %}low{% elif entry.gi < 70 %}medium{% else %}high{% endif %}">
+                                {{ entry.gi }}
+                            </span>
+                        </td>
+                        <td><strong>{{ entry.insulin }}u</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            {% if pagination.has_prev %}
+                <a href="{{ url_for('food_diary', page=pagination.prev_num) }}">&laquo; Previous</a>
+            {% endif %}
+            <span>Page {{ pagination.page }} of {{ pagination.pages }}</span>
+            {% if pagination.has_next %}
+                <a href="{{ url_for('food_diary', page=pagination.next_num) }}">Next &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="diary-sidebar">
+        <div class="filter-card">
+            <div class="section-subtitle">Advanced Filters</div>
+            
+            <div class="filter-row">
+                <label>Glycaemic Index</label>
+                <div class="gi-hybrid-container">
+                    <select id="giFilter" class="modern-select">
+                        <option value="all">All</option>
+                        <option value="low">Low (<55)</option>
+                        <option value="medium">Medium (56-69)</option>
+                        <option value="high">High (>70)</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                    <div class="slider-wrapper">
+                        <input type="range" id="giSlider" min="0" max="100" value="100" class="modern-slider">
+                        <span id="giSliderValue">100</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-row">
+                <label>Timestamp</label>
+                <select id="timeFilter" class="modern-select">
+                    <option value="all" {% if current_time == 'all' %}selected{% endif %}>All Time</option>
+                    <option value="24h" {% if current_time == '24h' %}selected{% endif %}>Last 24 Hours</option>
+                    <option value="7d" {% if current_time == '7d' %}selected{% endif %}>Last 7 Days</option>
+                    <option value="30d" {% if current_time == '30d' %}selected{% endif %}>Last 30 Days</option>
+
+                </select>
+            </div>
+
+            <div class="filter-row">
+                <label>Meal Type</label>
+                <select id="mealTypeFilter" class="modern-select">
+                    <option value="all">All Meals</option>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                </select>
+            </div>
+
+            <button class="search-btn">SEARCH</button>
+        </div>
+
+        <div class="nutrient-details">
+            <div class="section-subtitle">Nutrient Breakdown</div>
+            <table class="nutrient-table">
+                <thead>
+                    <tr>
+                        <th>NUTRIENT</th>
+                        <th>VALUE</th>
+                        <th>UNIT</th>
+                    </tr>
+                </thead>
+                <tbody id="nutrientBody">
+                    <tr><td colspan="3" style="text-align:center; color: #888; padding: 20px;">Select a meal to see details</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='food_diary.js') }}"></script>
+{% endblock %}
