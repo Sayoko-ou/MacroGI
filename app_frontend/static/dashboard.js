@@ -1,6 +1,8 @@
-// Dashboard JavaScript
+// Dashboard JavaScript - Fetches data from Supabase via API, auto-refreshes
 
 let charts = {};
+const AUTO_REFRESH_INTERVAL_MS = 60000; // 60 seconds
+let refreshTimer = null;
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -27,20 +29,73 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Initialize charts for the active view
-    setTimeout(() => {
-        if (activeView) {
-            const viewId = activeView.id;
-            if (viewId === 'overall-view') {
-                renderOverallCharts();
-            } else if (viewId === 'weekly-view') {
-                renderWeeklyCharts();
-            } else if (viewId === 'daily-view') {
-                renderDailyCharts();
+    // Load data from Supabase API and render charts
+    refreshCurrentView();
+    
+    // Auto-refresh: fetch fresh data from Supabase periodically
+    refreshTimer = setInterval(refreshCurrentView, AUTO_REFRESH_INTERVAL_MS);
+});
+
+// Update month/year in the nav box (weekly/daily only)
+function updatePeriodLabel() {
+    const labelEl = document.getElementById('dashboard-period-label');
+    if (!labelEl) return;
+    const activeView = document.querySelector('.dashboard-view.active');
+    if (!activeView) return;
+    const viewId = activeView.id;
+    if (viewId === 'overall-view') {
+        labelEl.classList.add('hidden');
+        labelEl.textContent = '';
+        return;
+    }
+    if (viewId === 'weekly-view') {
+        const activeWeek = document.querySelector('.week-btn.active');
+        if (activeWeek) {
+            const startIso = activeWeek.getAttribute('data-start-iso');
+            if (startIso) {
+                const d = new Date(startIso + 'T12:00:00');
+                labelEl.textContent = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                labelEl.classList.remove('hidden');
             }
         }
-    }, 100);
-});
+        return;
+    }
+    if (viewId === 'daily-view') {
+        const activeDay = document.querySelector('.day-btn.active');
+        if (activeDay) {
+            const dateStr = activeDay.getAttribute('data-date');
+            if (dateStr) {
+                const d = new Date(dateStr + 'T12:00:00');
+                labelEl.textContent = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                labelEl.classList.remove('hidden');
+            }
+        }
+    }
+}
+
+// Refresh the currently active view with data from Supabase
+function refreshCurrentView() {
+    const activeView = document.querySelector('.dashboard-view.active');
+    if (!activeView) return;
+    
+    const viewId = activeView.id;
+    if (viewId === 'overall-view') {
+        loadOverallData();
+    } else if (viewId === 'weekly-view') {
+        const activeWeek = document.querySelector('.week-btn.active');
+        if (activeWeek) {
+            const startIso = activeWeek.getAttribute('data-start-iso');
+            const endIso = activeWeek.getAttribute('data-end-iso');
+            loadWeeklyData(null, startIso, endIso);
+        } else {
+            renderWeeklyCharts({});
+        }
+    } else if (viewId === 'daily-view') {
+        const activeDay = document.querySelector('.day-btn.active');
+        const dateStr = activeDay ? activeDay.getAttribute('data-date') : null;
+        loadDailyData(dateStr);
+    }
+}
 
 // View Switching
 function initializeViewSwitching() {
@@ -51,15 +106,12 @@ function initializeViewSwitching() {
         btn.addEventListener('click', function() {
             const targetView = this.getAttribute('data-view');
             
-            // Update buttons
             viewButtons.forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             
-            // Update views
             views.forEach(v => v.classList.remove('active'));
             document.getElementById(targetView + '-view').classList.add('active');
             
-            // Show/hide date selectors based on view
             const weekSelector = document.querySelector('.week-selector-wrapper');
             const daySelector = document.querySelector('.day-selector-wrapper');
             
@@ -74,16 +126,8 @@ function initializeViewSwitching() {
                 if (daySelector) daySelector.classList.add('hidden');
             }
             
-            // Reinitialize charts for the active view
-            setTimeout(() => {
-                if (targetView === 'overall') {
-                    renderOverallCharts();
-                } else if (targetView === 'weekly') {
-                    renderWeeklyCharts();
-                } else if (targetView === 'daily') {
-                    renderDailyCharts();
-                }
-            }, 100);
+            updatePeriodLabel();
+            setTimeout(() => refreshCurrentView(), 100);
         });
     });
 }
@@ -93,453 +137,332 @@ function initializeWeekSelector() {
     const weekButtons = document.querySelectorAll('.week-btn');
     weekButtons.forEach(btn => {
         btn.addEventListener('click', function() {
-            const weekNum = this.getAttribute('data-week');
-            const startDate = this.getAttribute('data-start');
-            const endDate = this.getAttribute('data-end');
-            
-            // Update active state
             weekButtons.forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            
-            // Reload weekly data
-            loadWeeklyData(weekNum, startDate, endDate);
+            updatePeriodLabel();
+            const startIso = this.getAttribute('data-start-iso');
+            const endIso = this.getAttribute('data-end-iso');
+            loadWeeklyData(this.getAttribute('data-week'), startIso, endIso);
         });
     });
 }
 
-// Day Selector
+// Day Selector - click a date to show that day's data (in-place, no page reload)
 function initializeDaySelector() {
     const dayButtons = document.querySelectorAll('.day-btn');
     dayButtons.forEach(btn => {
         btn.addEventListener('click', function() {
             const date = this.getAttribute('data-date');
-            
-            // Reload daily data with new date
-            window.location.href = '/dashboard?view=daily&date=' + date;
+            if (!date) return;
+            dayButtons.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            updatePeriodLabel();
+            loadDailyData(date);
         });
     });
 }
 
-// Unified Navigation for Weekly and Daily
+// Arrow navigation: move to next/previous week or day within visible list (in-place).
+// Only do full page navigation when at the edge (no next/prev button).
 function navigatePeriod(direction) {
     const activeView = document.querySelector('.dashboard-view.active');
     if (!activeView) return;
-    
+
     const viewId = activeView.id;
-    
+
     if (viewId === 'weekly-view') {
-        // Navigate weeks
-        const activeBtn = document.querySelector('.week-btn.active');
-        if (!activeBtn) return;
-        
-        const weekNum = parseInt(activeBtn.getAttribute('data-week'));
-        const newWeekNum = weekNum + direction;
-        
-        if (newWeekNum < 1 || newWeekNum > 7) return;
-        
-        const targetBtn = document.querySelector(`.week-btn[data-week="${newWeekNum}"]`);
-        if (targetBtn) {
-            targetBtn.click();
+        const weekButtons = Array.from(document.querySelectorAll('.week-btn'));
+        const activeIndex = weekButtons.findIndex(b => b.classList.contains('active'));
+        if (activeIndex === -1) return;
+        const nextIndex = activeIndex + direction;
+        if (nextIndex >= 0 && nextIndex < weekButtons.length) {
+            const btn = weekButtons[nextIndex];
+            weekButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            updatePeriodLabel();
+            const startIso = btn.getAttribute('data-start-iso');
+            const endIso = btn.getAttribute('data-end-iso');
+            if (startIso && endIso) loadWeeklyData(null, startIso, endIso);
+        } else {
+            const activeBtn = weekButtons[activeIndex];
+            const startIso = activeBtn.getAttribute('data-start-iso');
+            if (!startIso) return;
+            const d = new Date(startIso + 'T12:00:00');
+            d.setDate(d.getDate() + direction * 7);
+            const newStartIso = d.toISOString().split('T')[0];
+            window.location.href = '/dashboard?view=weekly&week_start=' + newStartIso;
         }
     } else if (viewId === 'daily-view') {
-        // Navigate days
-        const activeBtn = document.querySelector('.day-btn.active');
-        if (!activeBtn) return;
-        
-        const currentDate = activeBtn.getAttribute('data-date');
-        const date = new Date(currentDate);
-        date.setDate(date.getDate() + direction);
-        
-        const newDateStr = date.toISOString().split('T')[0];
-        window.location.href = '/dashboard?view=daily&date=' + newDateStr;
+        const dayButtons = Array.from(document.querySelectorAll('.day-btn'));
+        const activeIndex = dayButtons.findIndex(b => b.classList.contains('active'));
+        if (activeIndex === -1) return;
+        const nextIndex = activeIndex + direction;
+        if (nextIndex >= 0 && nextIndex < dayButtons.length) {
+            const btn = dayButtons[nextIndex];
+            dayButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            updatePeriodLabel();
+            const dateStr = btn.getAttribute('data-date');
+            if (dateStr) loadDailyData(dateStr);
+        } else {
+            const activeBtn = dayButtons[activeIndex];
+            const currentDate = activeBtn.getAttribute('data-date');
+            if (!currentDate) return;
+            const date = new Date(currentDate + 'T12:00:00');
+            date.setDate(date.getDate() + direction);
+            const newDateStr = date.toISOString().split('T')[0];
+            window.location.href = '/dashboard?view=daily&date=' + newDateStr;
+        }
     }
 }
 
-// Load Weekly Data
-function loadWeeklyData(weekNum, startDate, endDate) {
-    fetch(`/api/dashboard/weekly?week=${weekNum}&start=${startDate}&end=${endDate}`)
+// Load Overall Data from Supabase
+function loadOverallData() {
+    fetch('/api/dashboard/overall?days=30')
         .then(response => response.json())
         .then(data => {
+            if (data.error) throw new Error(data.error);
+            renderOverallCharts(data);
+        })
+        .catch(err => {
+            console.error('Error loading overall data:', err);
+            renderOverallCharts({});
+        });
+}
+
+// Load Weekly Data from Supabase
+function loadWeeklyData(weekNum, startIso, endIso) {
+    const url = `/api/dashboard/weekly?start=${encodeURIComponent(startIso || '')}&end=${encodeURIComponent(endIso || '')}`;
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            console.log('[Dashboard] Weekly data:', data);
             updateWeeklySummary(data);
             renderWeeklyCharts(data);
         })
-        .catch(error => console.error('Error loading weekly data:', error));
+        .catch(err => {
+            console.error('Error loading weekly data:', err);
+            updateWeeklySummary({ glycaemic_load: 0, carbohydrates: 0, calories: 0 });
+            renderWeeklyCharts({});
+        });
 }
 
-// Update Weekly Summary
+// Load Daily Data from Supabase
+function loadDailyData(dateStr) {
+    const url = dateStr ? `/api/dashboard/daily?date=${dateStr}` : '/api/dashboard/daily';
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            console.log('[Dashboard] Daily data:', data);
+            updateDailySummary(data);
+            updateDailyFoodLog(data.food_entries || []);
+            renderDailyCharts(data);
+        })
+        .catch(err => {
+            console.error('Error loading daily data:', err);
+            updateDailySummary({ glycaemic_load: 0, carbohydrates: 0, calories: 0 });
+            updateDailyFoodLog([]);
+            renderDailyCharts({});
+        });
+}
+
 function updateWeeklySummary(data) {
-    document.querySelector('.summary-cards .summary-card:nth-child(1) .summary-value').textContent = data.glycaemic_load || 100;
-    document.querySelector('.summary-cards .summary-card:nth-child(2) .summary-value').textContent = data.carbohydrates || 100;
-    document.querySelector('.summary-cards .summary-card:nth-child(3) .summary-value').textContent = data.calories || 100;
-}
-
-// Initialize Charts
-function initializeCharts() {
-    if (document.getElementById('overall-view').classList.contains('active')) {
-        renderOverallCharts();
-    } else if (document.getElementById('weekly-view').classList.contains('active')) {
-        renderWeeklyCharts();
-    } else if (document.getElementById('daily-view').classList.contains('active')) {
-        renderDailyCharts();
+    const cards = document.querySelectorAll('#weekly-view .summary-cards .summary-card');
+    if (cards.length >= 3) {
+        cards[0].querySelector('.summary-value').textContent = data.glycaemic_load ?? 0;
+        cards[1].querySelector('.summary-value').textContent = data.carbohydrates ?? 0;
+        cards[2].querySelector('.summary-value').textContent = data.calories ?? 0;
     }
 }
 
-// Overall Charts
-function renderOverallCharts() {
-    // Destroy existing charts
+function updateDailySummary(data) {
+    const cards = document.querySelectorAll('#daily-view .summary-cards .summary-card');
+    if (cards.length >= 3) {
+        cards[0].querySelector('.summary-value').textContent = data.glycaemic_load ?? 0;
+        cards[1].querySelector('.summary-value').textContent = data.carbohydrates ?? 0;
+        cards[2].querySelector('.summary-value').textContent = data.calories ?? 0;
+    }
+}
+
+function updateDailyFoodLog(entries) {
+    const container = document.querySelector('#daily-view .timeline-items');
+    if (!container) return;
+    container.innerHTML = entries.length ? entries.map(e => `
+        <div class="timeline-item">
+            <div class="timeline-time">${e.time || '--'}</div>
+            <div class="timeline-content">
+                <strong>${e.food || 'Unknown'}</strong>
+                <span class="timeline-gl">${e.gl ?? 0} GL</span>
+            </div>
+        </div>
+    `).join('') : '<p class="empty-state">No food entries for this day.</p>';
+}
+
+// Overall Charts (from Supabase)
+function renderOverallCharts(data) {
     Object.values(charts).forEach(chart => {
-        if (chart && typeof chart.destroy === 'function') {
-            chart.destroy();
-        }
+        if (chart && typeof chart.destroy === 'function') chart.destroy();
     });
     charts = {};
 
-    // Line Chart - Monthly Trends
+    const lc = data.line_chart || {};
+    const labels = lc.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
+    const carb = lc.carb || Array(labels.length).fill(0);
+    const gl = lc.gl || Array(labels.length).fill(0);
+    const cal = lc.calories || Array(labels.length).fill(0);
+
     const lineCtx = document.getElementById('overall-line-chart');
     if (lineCtx) {
+        const maxVal = Math.max(...carb, ...gl, ...cal, 1);
         charts.overallLine = new Chart(lineCtx, {
             type: 'line',
             data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+                labels,
                 datasets: [
-                    {
-                        label: 'Carb',
-                        data: [25, 30, 28, 35, 32, 38, 40],
-                        borderColor: '#5B9BD5',
-                        backgroundColor: 'rgba(91, 155, 213, 0.1)',
-                        tension: 0.4
-                    },
-                    {
-                        label: 'GL',
-                        data: [20, 25, 22, 28, 26, 30, 32],
-                        borderColor: '#70AD47',
-                        backgroundColor: 'rgba(112, 173, 71, 0.1)',
-                        tension: 0.4
-                    },
-                    {
-                        label: 'Calories',
-                        data: [30, 35, 32, 40, 38, 42, 45],
-                        borderColor: '#4472C4',
-                        backgroundColor: 'rgba(68, 114, 196, 0.1)',
-                        tension: 0.4
-                    }
+                    { label: 'Carb', data: carb, borderColor: '#5B9BD5', backgroundColor: 'rgba(91, 155, 213, 0.1)', tension: 0.4 },
+                    { label: 'GL', data: gl, borderColor: '#70AD47', backgroundColor: 'rgba(112, 173, 71, 0.1)', tension: 0.4 },
+                    { label: 'Calories', data: cal, borderColor: '#4472C4', backgroundColor: 'rgba(68, 114, 196, 0.1)', tension: 0.4 }
                 ]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 50
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: true } } }
         });
     }
 
-    // Pie Chart - Meal Types
+    const pc = data.pie_chart || {};
+    const pieLabels = pc.labels && pc.labels.length ? pc.labels : ['No data'];
+    const pieVals = pc.values && pc.values.length ? pc.values : [1];
     const pieCtx = document.getElementById('overall-pie-chart');
     if (pieCtx) {
         charts.overallPie = new Chart(pieCtx, {
             type: 'pie',
             data: {
-                labels: ['Breakfast', 'Lunch', 'Dinner', 'Snack'],
-                datasets: [{
-                    data: [35, 30, 25, 10],
-                    backgroundColor: ['#5B9BD5', '#70AD47', '#FFC000', '#ED7D31']
-                }]
+                labels: pieLabels,
+                datasets: [{ data: pieVals, backgroundColor: ['#5B9BD5', '#70AD47', '#FFC000', '#ED7D31', '#ED7D32'] }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
         });
     }
 
-    // Bar Chart - GI Values
+    const topGi = (data.top_gi || []).slice(0, 20);
+    const topCarb = (data.top_carb || []).slice(0, 20);
+    const giLabels = topGi.length ? topGi.map(x => (x.name || 'Unknown').substring(0, 12)) : ['No data'];
+    const giData = topGi.length ? topGi.map(x => x.gi) : [0];
+    const carbLabels = topCarb.length ? topCarb.map(x => (x.name || 'Unknown').substring(0, 12)) : ['No data'];
+    const carbData = topCarb.length ? topCarb.map(x => x.carbs) : [0];
+
     const giCtx = document.getElementById('overall-gi-chart');
     if (giCtx) {
         charts.overallGI = new Chart(giCtx, {
             type: 'bar',
-            data: {
-                labels: ['Bread', 'Luncheon Meat', 'Sweets', 'Jaggery', 'Milk'],
-                datasets: [{
-                    label: 'GI',
-                    data: [20, 15, 18, 22, 12],
-                    backgroundColor: '#5B9BD5'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 25
-                    }
-                }
-            }
+            data: { labels: giLabels, datasets: [{ label: 'GI', data: giData, backgroundColor: '#5B9BD5' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
         });
     }
-
-    // Bar Chart - Carb Values
     const carbCtx = document.getElementById('overall-carb-chart');
     if (carbCtx) {
         charts.overallCarb = new Chart(carbCtx, {
             type: 'bar',
-            data: {
-                labels: ['Bread', 'Luncheon Meat', 'Sweets', 'Jaggery', 'Milk'],
-                datasets: [{
-                    label: 'Carb',
-                    data: [40, 30, 35, 45, 25],
-                    backgroundColor: '#5B9BD5'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 50
-                    }
-                }
-            }
+            data: { labels: carbLabels, datasets: [{ label: 'Carb', data: carbData, backgroundColor: '#5B9BD5' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
         });
     }
 }
 
-// Weekly Charts
+// Weekly Charts (from Supabase)
 function renderWeeklyCharts(data) {
-    // Destroy existing charts
     if (charts.weeklyLine) charts.weeklyLine.destroy();
     if (charts.weeklyBar) charts.weeklyBar.destroy();
     if (charts.weeklyPie) charts.weeklyPie.destroy();
     if (charts.weeklyBreakdown) charts.weeklyBreakdown.destroy();
 
-    // Line Chart
+    const labels = data.line_labels || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const lineCarb = data.line_carb || Array(7).fill(0);
+    const lineGl = data.line_gl || Array(7).fill(0);
+    const lineCal = data.line_calories || Array(7).fill(0);
+    const breakdownGl = data.daily_breakdown_gl || Array(7).fill(0);
+    const breakdownCarbs = data.daily_breakdown_carbs || Array(7).fill(0);
+    const breakdownCal = data.daily_breakdown_calories || Array(7).fill(0);
+    const top5 = data.top5_gl || [];
+    const top5Labels = top5.length ? top5.map(x => (x.name || 'Unknown').substring(0, 12)) : ['No data'];
+    const top5Data = top5.length ? top5.map(x => x.gl) : [0];
+    const pieLabels = data.pie_labels && data.pie_labels.length ? data.pie_labels : ['No data'];
+    const pieVals = data.pie_values && data.pie_values.length ? data.pie_values : [1];
+
     const lineCtx = document.getElementById('weekly-line-chart');
     if (lineCtx) {
         charts.weeklyLine = new Chart(lineCtx, {
             type: 'line',
             data: {
-                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                labels,
                 datasets: [
-                    {
-                        label: 'Carb',
-                        data: [30, 35, 28, 40, 32, 38, 35],
-                        borderColor: '#5B9BD5',
-                        backgroundColor: 'rgba(91, 155, 213, 0.1)',
-                        tension: 0.4
-                    },
-                    {
-                        label: 'GL',
-                        data: [25, 30, 22, 35, 28, 32, 30],
-                        borderColor: '#70AD47',
-                        backgroundColor: 'rgba(112, 173, 71, 0.1)',
-                        tension: 0.4
-                    },
-                    {
-                        label: 'Calories',
-                        data: [35, 40, 32, 45, 38, 42, 40],
-                        borderColor: '#4472C4',
-                        backgroundColor: 'rgba(68, 114, 196, 0.1)',
-                        tension: 0.4
-                    }
+                    { label: 'Carb', data: lineCarb, borderColor: '#5B9BD5', backgroundColor: 'rgba(91, 155, 213, 0.1)', tension: 0.4 },
+                    { label: 'GL', data: lineGl, borderColor: '#70AD47', backgroundColor: 'rgba(112, 173, 71, 0.1)', tension: 0.4 },
+                    { label: 'Calories', data: lineCal, borderColor: '#4472C4', backgroundColor: 'rgba(68, 114, 196, 0.1)', tension: 0.4 }
                 ]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 50
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: true } } }
         });
     }
 
-    // Bar Chart - Top 5 GL Foods
     const barCtx = document.getElementById('weekly-bar-chart');
     if (barCtx) {
         charts.weeklyBar = new Chart(barCtx, {
             type: 'bar',
-            data: {
-                labels: ['Bread', 'Luncheon Meat', 'Sweets', 'Jaggery', 'Milk'],
-                datasets: [{
-                    label: 'GL',
-                    data: [20, 15, 18, 22, 12],
-                    backgroundColor: '#5B9BD5'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
+            data: { labels: top5Labels, datasets: [{ label: 'GL', data: top5Data, backgroundColor: '#5B9BD5' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
         });
     }
 
-    // Pie Chart - Meal Types
     const pieCtx = document.getElementById('weekly-pie-chart');
     if (pieCtx) {
         charts.weeklyPie = new Chart(pieCtx, {
             type: 'pie',
-            data: {
-                labels: ['Breakfast', 'Lunch', 'Dinner', 'Snack'],
-                datasets: [{
-                    data: [35, 30, 25, 10],
-                    backgroundColor: ['#5B9BD5', '#70AD47', '#FFC000', '#ED7D31']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
+            data: { labels: pieLabels, datasets: [{ data: pieVals, backgroundColor: ['#5B9BD5', '#70AD47', '#FFC000', '#ED7D31'] }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
         });
     }
 
-    // Daily Breakdown Chart
     const breakdownCtx = document.getElementById('weekly-daily-breakdown');
     if (breakdownCtx) {
-        if (charts.weeklyBreakdown) charts.weeklyBreakdown.destroy();
-        
         charts.weeklyBreakdown = new Chart(breakdownCtx, {
             type: 'bar',
             data: {
-                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                labels,
                 datasets: [
-                    {
-                        label: 'Glycaemic Load',
-                        data: [85, 92, 78, 95, 88, 102, 90],
-                        backgroundColor: '#5B9BD5'
-                    },
-                    {
-                        label: 'Carbohydrates',
-                        data: [120, 135, 110, 140, 125, 150, 130],
-                        backgroundColor: '#70AD47'
-                    },
-                    {
-                        label: 'Calories',
-                        data: [1800, 2000, 1700, 2100, 1900, 2200, 2000],
-                        backgroundColor: '#FFC000'
-                    }
+                    { label: 'Glycaemic Load', data: breakdownGl, backgroundColor: '#5B9BD5' },
+                    { label: 'Carbohydrates', data: breakdownCarbs, backgroundColor: '#70AD47' },
+                    { label: 'Calories', data: breakdownCal, backgroundColor: '#FFC000' }
                 ]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: true } } }
         });
     }
 }
 
-// Daily Charts
-function renderDailyCharts() {
-    // Destroy existing chart
+// Daily Charts (from Supabase)
+function renderDailyCharts(data) {
     if (charts.dailyLine) charts.dailyLine.destroy();
 
-    // Line Chart
+    const labels = data.line_labels && data.line_labels.length ? data.line_labels : ['--'];
+    const carb = data.line_carb || [0];
+    const gl = data.line_gl || [0];
+    const cal = data.line_calories || [0];
+
     const lineCtx = document.getElementById('daily-line-chart');
     if (lineCtx) {
         charts.dailyLine = new Chart(lineCtx, {
             type: 'line',
             data: {
-                labels: ['09:00', '12:00', '19:00'],
+                labels,
                 datasets: [
-                    {
-                        label: 'Carb',
-                        data: [25, 40, 20],
-                        borderColor: '#5B9BD5',
-                        backgroundColor: 'rgba(91, 155, 213, 0.1)',
-                        tension: 0.4
-                    },
-                    {
-                        label: 'GL',
-                        data: [20, 35, 15],
-                        borderColor: '#70AD47',
-                        backgroundColor: 'rgba(112, 173, 71, 0.1)',
-                        tension: 0.4
-                    },
-                    {
-                        label: 'Calories',
-                        data: [30, 45, 25],
-                        borderColor: '#4472C4',
-                        backgroundColor: 'rgba(68, 114, 196, 0.1)',
-                        tension: 0.4
-                    }
+                    { label: 'Carb', data: carb, borderColor: '#5B9BD5', backgroundColor: 'rgba(91, 155, 213, 0.1)', tension: 0.4 },
+                    { label: 'GL', data: gl, borderColor: '#70AD47', backgroundColor: 'rgba(112, 173, 71, 0.1)', tension: 0.4 },
+                    { label: 'Calories', data: cal, borderColor: '#4472C4', backgroundColor: 'rgba(68, 114, 196, 0.1)', tension: 0.4 }
                 ]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } }, scales: { y: { beginAtZero: true } } }
         });
     }
 }

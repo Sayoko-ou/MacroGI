@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from app_backend.database import db
 import json
 from app_backend.modules.fooddiary_query import query_db
+from app_backend.modules.dashboard_query import get_overall_data, get_weekly_data, get_daily_data
 
 load_dotenv()
 
@@ -137,19 +138,31 @@ def dashboard_page():
     greeting = get_greeting()
     view = request.args.get('view', 'overall')
     
-    # Generate weeks (last 7 weeks)
+    # Generate weeks: 5 weeks around selected week (arrows move between weeks)
     today = datetime.now().date()
+    days_since_monday = today.weekday()
+    this_week_monday = today - timedelta(days=days_since_monday)
+    week_start_param = request.args.get('week_start')
+    selected_week_monday = this_week_monday
+    if week_start_param and view == 'weekly':
+        try:
+            selected_week_monday = datetime.strptime(week_start_param, '%Y-%m-%d').date()
+            # Normalize to Monday
+            selected_week_monday = selected_week_monday - timedelta(days=selected_week_monday.weekday())
+        except ValueError:
+            selected_week_monday = this_week_monday
     weeks = []
-    for i in range(6, -1, -1):
-        # Calculate week start (Monday)
-        days_since_monday = today.weekday()
-        week_start = today - timedelta(days=days_since_monday + (i * 7))
+    for i in range(-2, 3):  # 2 before, selected, 2 after
+        week_start = selected_week_monday + timedelta(days=i * 7)
         week_end = week_start + timedelta(days=6)
+        week_num_label = week_start.isocalendar()[1]
         weeks.append({
-            'week_num': 7 - i,
+            'week_num': week_num_label,
             'start_date': week_start.strftime('%m/%d'),
             'end_date': week_end.strftime('%m/%d'),
-            'is_selected': i == 0
+            'start_iso': week_start.strftime('%Y-%m-%d'),
+            'end_iso': week_end.strftime('%Y-%m-%d'),
+            'is_selected': week_start == selected_week_monday
         })
     
     # Generate days (last 7 days)
@@ -174,27 +187,27 @@ def dashboard_page():
             'is_selected': d == selected_date if view == 'daily' else (d == today)
         })
     
-    # Generate sample data based on selected date
-    date_for_seed = selected_date if view == 'daily' else today
-    # Use selected_date for daily view, today for weekly/overall
-    random.seed(date_for_seed.toordinal())
+    # Fetch data from Supabase (uses URL/KEY from .env)
+    user_id = session.get('user_id')
+    weekly_data = {'glycaemic_load': 0, 'carbohydrates': 0, 'calories': 0}
+    daily_data = {'glycaemic_load': 0, 'carbohydrates': 0, 'calories': 0, 'food_entries': []}
     
-    weekly_data = {
-        'glycaemic_load': random.randint(600, 800),
-        'carbohydrates': random.randint(800, 1200),
-        'calories': random.randint(8000, 12000)
-    }
+    try:
+        # Weekly: selected week (from week_start param or current week)
+        weekly_start = selected_week_monday
+        weekly_end = weekly_start + timedelta(days=6)
+        weekly_data = get_weekly_data(user_id, weekly_start, weekly_end)
+        # Daily: selected date
+        daily_data = get_daily_data(user_id, selected_date)
+    except Exception as e:
+        print(f"Dashboard initial load error: {e}")
     
-    daily_data = {
-        'glycaemic_load': random.randint(80, 120),
-        'carbohydrates': random.randint(100, 200),
-        'calories': random.randint(1200, 2500),
-        'food_entries': [
-            {'time': '09:00', 'food': 'Bread', 'gl': 100},
-            {'time': '12:00', 'food': 'McDonalds', 'gl': 400},
-            {'time': '19:00', 'food': 'Snacks', 'gl': 100}
-        ]
-    }
+    # Month/year label for weekly or daily view (same box as Dashboard / Person Analytics)
+    period_month_year = ''
+    if view == 'weekly':
+        period_month_year = selected_week_monday.strftime('%B %Y')
+    elif view == 'daily':
+        period_month_year = selected_date.strftime('%B %Y')
     
     return render_template('dashboard.html',
                          greeting=greeting,
@@ -203,7 +216,8 @@ def dashboard_page():
                          weeks=weeks,
                          days=days,
                          weekly_data=weekly_data,
-                         daily_data=daily_data)
+                         daily_data=daily_data,
+                         period_month_year=period_month_year)
 
 
 # --- API ROUTES (Simulating Microservices) ---
@@ -320,21 +334,64 @@ def get_response():
     
     return jsonify({"reply": bot_reply})
 
-# Dashboard API Endpoints
+# Dashboard API Endpoints (Supabase via .env URL/KEY)
+@app.route('/api/dashboard/overall', methods=['GET'])
+def api_overall_data():
+    if not is_logged_in():
+        return jsonify({"error": "Unauthorized"}), 401
+    user_id = session.get('user_id')
+    days = request.args.get('days', 30, type=int)
+    try:
+        data = get_overall_data(user_id, days=min(days, 90))
+        return jsonify(data)
+    except Exception as e:
+        print(f"Dashboard overall error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/dashboard/weekly', methods=['GET'])
 def api_weekly_data():
-    if not is_logged_in(): return jsonify({"error": "Unauthorized"}), 401
-    
-    week = request.args.get('week', '1')
-    random.seed(int(week) * 1000)
-    
-    return jsonify({
-        'glycaemic_load': random.randint(600, 800),
-        'carbohydrates': random.randint(800, 1200),
-        'calories': random.randint(8000, 12000)
-    })
-    if not user_message: return jsonify({"error": "No message"}), 400
-    return jsonify({"reply": bot.get_advice(user_message)})
+    if not is_logged_in():
+        return jsonify({"error": "Unauthorized"}), 401
+    user_id = session.get('user_id')
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    if not start_str or not end_str:
+        today = datetime.now().date()
+        days_since_monday = today.weekday()
+        week_start = today - timedelta(days=days_since_monday)
+        week_end = week_start + timedelta(days=6)
+        start_str = week_start.strftime('%Y-%m-%d')
+        end_str = week_end.strftime('%Y-%m-%d')
+    try:
+        start_date = datetime.strptime(start_str, '%Y-%m-%d')
+        end_date = datetime.strptime(end_str, '%Y-%m-%d')
+        data = get_weekly_data(user_id, start_date, end_date)
+        return jsonify(data)
+    except ValueError as e:
+        return jsonify({"error": f"Invalid date: {e}"}), 400
+    except Exception as e:
+        print(f"Dashboard weekly error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/dashboard/daily', methods=['GET'])
+def api_daily_data():
+    if not is_logged_in():
+        return jsonify({"error": "Unauthorized"}), 401
+    user_id = session.get('user_id')
+    date_str = request.args.get('date')
+    if not date_str:
+        date_str = datetime.now().date().strftime('%Y-%m-%d')
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d')
+        data = get_daily_data(user_id, target_date)
+        return jsonify(data)
+    except ValueError as e:
+        return jsonify({"error": f"Invalid date: {e}"}), 400
+    except Exception as e:
+        print(f"Dashboard daily error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/food-diary')
