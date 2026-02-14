@@ -23,10 +23,13 @@ def get_food_fact(food_name, nutrients, predicted_gi, predicted_gl):
         {
             "role": "user", 
             "content": (
-                f"Give a 10-word health tip for eating {food_name}. "
-                f"Nutrients: {nutrients} ."
-                f"Metrics: Glycemic Index {predicted_gi}, Glycemic Load {predicted_gl}. "
-                f"Focus on the impact of these combined values."
+                f"Write a single, practical 10-to-15 word dietary tip for eating {food_name}. "
+                f"GI: {predicted_gi}, GL: {predicted_gl}, Nutrients: {nutrients}. "
+                "CRITICAL INSTRUCTIONS: "
+                "1. Do NOT use generic phrases like 'eat in moderation' or 'balance your GI'. "
+                "2. If GI/GL is high, suggest a specific food pairing (like nuts or fiber) to slow blood sugar spikes. "
+                "3. If GI/GL is low, highlight its benefit for sustained energy. "
+                "4. Give direct, actionable advice without repeating the metrics."
             )
         }
     ]
