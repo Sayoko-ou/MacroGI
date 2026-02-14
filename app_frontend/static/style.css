@@ -1002,6 +1002,7 @@ body {
     .week-selector, .day-selector {
         flex-direction: column;
     }
+}
 /* --- SCANNER TABLE UPDATES --- */
 
 /* Subtle Ghost Button at bottom of card */

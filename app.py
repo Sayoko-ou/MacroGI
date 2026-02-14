@@ -469,7 +469,8 @@ if __name__ == '__main__':
             "--port", "8000", 
             "--reload"
         ],
-        cwd="app_backend"        # 2. ADDED THIS: Tells Uvicorn to start inside the backend folder!
+        cwd="app_backend",        # 2. ADDED THIS: Tells Uvicorn to start inside the backend folder!
+        shell=True
     )
 
     try:
