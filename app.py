@@ -21,8 +21,8 @@ try:
     bot = MacroGIBot()
     print("✅ Real AI Chatbot Connected")
 except Exception as e:
-    print(f"⚠️ Chatbot Error: {e}")
-    print("ℹ️ Switching to Mock Chatbot (Safe Mode)")
+    print(f"Chatbot Error: {e}")
+    print("ℹSwitching to Mock Chatbot (Safe Mode)")
     class MockBot:
         def get_advice(self, user_text):
             return "System: Offline."

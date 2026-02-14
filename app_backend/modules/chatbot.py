@@ -13,34 +13,44 @@ class MacroGIBot:
         self.model_id = "models/gemini-flash-lite-latest"
         
         # 1. Load the Knowledge Base
-        # Assuming you placed it in the root or a 'data' folder
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        # Adjusted to find data folder from app_backend/modules/
-        kb_path = os.path.join(current_dir, "..", "..", "data", "knowledge_base.json")
+        kb_path = os.path.join(current_dir, "knowledge_base.json")
         
         try:
             with open(kb_path, "r") as f:
                 self.kb = json.load(f)
+                print("Knowledge base found!")
         except FileNotFoundError:
-            print(f"⚠️ Warning: Knowledge base not found at {kb_path}")
+            print(f"Warning: Knowledge base not found at {kb_path}")
             self.kb = {"concepts": []}
 
         self.sys_instruct = (
             "You are the MacroGI Advisor. Help diabetics with dietary advice using Glycemic Index data."
             "Use the provided context to answer accurately. If no context is provided, "
             "rely on your general medical knowledge but remain conservative. "
-            "Keep responses concise."
+            "Keep responses concise. If you are given context with list of items, display them nicely."
         )
 
     def _get_relevant_context(self, user_text):
-        """Simple keyword matcher to pull data from JSON."""
         query = user_text.lower()
         context_parts = []
         
+        # 1. Check the 'concepts' section
         for item in self.kb.get("concepts", []):
-            # Check if any keyword from the JSON is in the user's message
-            if any(keyword.lower() in query for keyword in item.get("keywords", [])):
-                context_parts.append(f"{item['topic']}: {item['content']}")
+            keywords = item.get("keywords", [])
+            if any(kw.lower() in query for kw in keywords) or item['topic'].lower() in query:
+                content = item.get("content") or ". ".join(item.get("content_list", []))
+                context_parts.append(f"{item['topic']}: {content}")
+        
+        # 2. NEW: Check the 'macrogi_queries' section
+        for item in self.kb.get("macrogi_queries", []):
+            if any(word in query for word in item['query'].lower().split()):
+                context_parts.append(f"Q: {item['query']}\nA: {item['response']}")
+
+        # 3. Fallback: If they ask about the app/features and nothing was found
+        if not context_parts and ("feature" in query or "macrogi" in query or "what can you do" in query):
+            for item in self.kb.get("macrogi_queries", []):
+                context_parts.append(f"Feature Info: {item['response']}")
         
         return "\n".join(context_parts)
 
@@ -49,8 +59,7 @@ class MacroGIBot:
             # 2. Inject Context
             context = self._get_relevant_context(user_text)
             
-            # Combine context with the user's actual question
-            # This is the "Augmented" part of RAG
+            # Combine context with prompt
             prompt_with_context = f"Context Information:\n{context}\n\nUser Question: {user_text}"
             
             response = self.client.models.generate_content(
