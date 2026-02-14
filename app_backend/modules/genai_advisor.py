@@ -18,7 +18,6 @@ def get_food_fact(food_name, nutrients, predicted_gi, predicted_gl):
     if not HF_API_KEY or HF_API_KEY.startswith("PASTE"):
         return "Please add a valid HF Access Token to your .env file."
 
-    # Updated prompt to include Glycemic Load (GL)
     prompt_messages = [
         {
             "role": "user", 
@@ -38,7 +37,7 @@ def get_food_fact(food_name, nutrients, predicted_gi, predicted_gl):
         response = client.chat.completions.create(
             model=MODEL_ID,
             messages=prompt_messages,
-            max_tokens=35, # Slightly increased to handle complex advice
+            max_tokens=35,
             temperature=0.6
         )
         
@@ -49,4 +48,4 @@ def get_food_fact(food_name, nutrients, predicted_gi, predicted_gl):
     except Exception as e:
         print(f"💥 AI Error: {e}")
         # Soft fallback to keep the UI clean
-        return "Combine with fiber and protein to manage glucose response."
+        return "Simulation: Offline."

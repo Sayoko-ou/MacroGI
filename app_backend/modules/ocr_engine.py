@@ -7,7 +7,9 @@ from rapidocr_onnxruntime import RapidOCR
 from deep_translator import GoogleTranslator 
 import os
 
-# --- MODEL LOADING ---
+# I'm using a try-except here because TensorFlow can be heavy.
+# If it fails to load on whatever machine this runs on, the app won't crash, 
+# it just skips the smart table cropping part and scans the whole image.
 try:
     import tensorflow as tf
     TF_AVAILABLE = True
@@ -20,20 +22,25 @@ table_model = None
 translator = GoogleTranslator(source='auto', target='en')
 
 def load_models(model_path="models/table_classifier.keras"):
+    """Loads the Keras model once at startup so we don't have to reload it for every scan."""
     global table_model
     if TF_AVAILABLE and os.path.exists(model_path):
         try:
             table_model = tf.keras.models.load_model(model_path)
-            print(f"✅ Table Detector loaded from {model_path}")
+            print(f"Table Detector loaded from {model_path}")
         except Exception as e:
-            print(f"⚠️ Could not load Keras model: {e}")
+            print(f"Could not load Keras model: {e}")
             table_model = None
     else:
         print("ℹ️ Table detection model not found. Using full image OCR.")
 
 # --- HELPER: VISUALIZATION ---
 def draw_visuals(img, results, used_indices):
-    """Draws boxes: Red for used data, Green for ignored text"""
+    """
+    Creates the overlay image for the frontend so the user can see what the OCR did.
+    Red boxes = data we actually extracted and used.
+    Green boxes = text the OCR saw but we ignored.
+    """
     if not results or img is None: return None
     
     viz = img.copy()
@@ -54,11 +61,12 @@ def draw_visuals(img, results, used_indices):
     _, buffer = cv2.imencode('.jpg', viz)
     return base64.b64encode(buffer).decode('utf-8')
 
-# ==============================================================================
-# 1. IMAGE PROCESSING & TABLE DETECTION
-# ==============================================================================
+# Step 1: Image Processing & Cropping
 def get_table_crop(img):
-    """Attempts to crop the nutrition table using the AI model or CV contours."""
+    """
+    Instead of scanning the whole image (which might have logos and junk text),
+    this tries to find the actual nutrition table contour and crop it out.
+    """
     if table_model is None:
         return img, False
 
@@ -94,11 +102,10 @@ def get_table_crop(img):
     
     return img, False
 
-# ==============================================================================
-# 2. TEXT PARSING & VALIDATION
-# ==============================================================================
+# Step 2: Text Parsing & Validation
 def parse_value(text):
-    """Extracts numeric value and unit from a string like '12g' or '100 kcal'"""
+    """Takes a messy string like '12g' or '100 kcal' and splits it into the number and unit."""
+    # Quick fix: OCR often confuses the letter 'O' with the number '0', and 'l' with '1'
     clean = text.lower().replace('o', '0').replace('l', '1')
     match = re.search(r'(\d+(?:\.\d+)?)\s?([a-zA-Z%]+)?', clean)
     if match:
@@ -108,12 +115,15 @@ def parse_value(text):
     return None, None, None
 
 def is_physically_possible(nutrient, val, unit, text):
-    """Sanity checks (e.g. Sodium can't be 100g)"""
-    # If the text is way too long, it's probably a sentence, not a table value
+    """
+    Sanity check function. Sometimes OCR grabs random numbers (like a phone number).
+    This ensures the number actually makes logical sense for that specific nutrient.
+    """
+    # If the text is way too long, it's probably an ingredient paragraph, not a table value
     if len(text) > 15 or unit == "%": return False
     
     if nutrient == "Sodium":
-        # FIXED: Allow empty units ("") because OCR often misses "mg"
+        # Allow empty units ("") because OCR often misses the tiny "mg" text
         if unit != "" and unit not in ['mg', 'g']: return False
         
         # If unit is 'g', value shouldn't be huge (e.g., 500g salt is impossible)
@@ -133,22 +143,20 @@ def is_physically_possible(nutrient, val, unit, text):
     return False
 
 
-    # Encode to Base64 string for HTML display
-    _, buffer = cv2.imencode('.jpg', viz)
-    return base64.b64encode(buffer).decode('utf-8')
-
 def translate_if_foreign(text):
+    """Quick helper to translate foreign labels into English so my keyword matcher still works."""
     if not all(ord(c) < 128 for c in text):
         try: return translator.translate(text).lower()
         except: return text.lower()
     return text.lower()
 
 
-# ==============================================================================
-# 3. DOMINANT COLUMN CLUSTERING (RESTORED LOGIC)
-# ==============================================================================
+# Step 3: Column Clustering (Handling weird formatting)
 def find_all_candidates(key_idx, key_box, all_results, used_indices, nutrient_name):
-    """Finds all numbers to the right of a label (e.g. 'Protein')"""
+    """
+    If the value isn't right next to the label, this function looks to the 
+    right of the label (e.g., 'Protein') to find all floating numbers that could be a match.
+    """
     key_y = (key_box[0][1] + key_box[2][1]) / 2
     key_x = key_box[1][0]
 
@@ -159,8 +167,8 @@ def find_all_candidates(key_idx, key_box, all_results, used_indices, nutrient_na
         val_y = (val_box[0][1] + val_box[2][1]) / 2
         val_x = val_box[0][0]
 
-        if val_x < key_x: continue # Must be to the right
-        if abs(key_y - val_y) > 15: continue # Relaxed vertical drift check
+        if val_x < key_x: continue # Must be to the right of the label
+        if abs(key_y - val_y) > 15: continue # Must be roughly on the same horizontal line
 
         v_num, v_unit, v_raw = parse_value(val_text)
         if v_num is None: continue
@@ -176,14 +184,18 @@ def find_all_candidates(key_idx, key_box, all_results, used_indices, nutrient_na
     return candidates
 
 def solve_column_clustering(candidates_pool):
-    """Finds the vertical column where most numbers align"""
+    """
+    Since nutrition tables usually have all their numbers lined up in a neat vertical column,
+    this function calculates where that invisible column line is.
+    It groups all the x-coordinates to find the most common alignment.
+    """
     all_x = []
     for key, cands in candidates_pool.items():
         for c in cands: all_x.append(c['x'])
 
     if not all_x: return {}
 
-    # Find Dominant X (Bin size 40px)
+    # Find the dominant X-coordinate (grouping them in 40px bins)
     bins = [round(x / 40) * 40 for x in all_x]
     common = Counter(bins).most_common()
     if not common: return {}
@@ -191,7 +203,7 @@ def solve_column_clustering(candidates_pool):
     dominant_x = common[0][0]
     final_results = {}
 
-    # Filter candidates by this column
+    # Lock in the candidates that fall within 60px of our invisible column line
     for key, cands in candidates_pool.items():
         if not cands: continue
         best_cand = None
@@ -209,14 +221,11 @@ def solve_column_clustering(candidates_pool):
 
     return final_results
 
-# ==============================================================================
-# 4. MAIN EXTRACT FUNCTION
-# ==============================================================================
+# Step 4: Main Extraction Pipeline
 def extract_nutrients(image_bytes):
     """
-    Main entry point.
-    Input: Image bytes
-    Output: Dictionary of extracted nutrients + Annotated Image
+    This is the main endpoint that FastAPI calls.
+    It takes the raw image bytes, runs the whole OCR pipeline, and returns the JSON data.
     """
     # 1. Decode Image
     nparr = np.frombuffer(image_bytes, np.uint8)
@@ -233,7 +242,7 @@ def extract_nutrients(image_bytes):
         return {"error": "No text detected"}
 
     # 4. Search logic
-    # Initializing with 0s to ensure the frontend always gets the expected keys
+    # Set default values to 0. This ensures the frontend doesn't crash expecting a key that doesn't exist.
     extracted = {
         "Calories": 0, "Protein": 0, "Total Fat": 0, 
         "Carbohydrate": 0, "Fiber": 0, "Sodium": 0, "Salt": 0 
@@ -253,7 +262,8 @@ def extract_nutrients(image_bytes):
     }
 
     # Pass 1: Find Labels and their Candidates
-    # CRITICAL: We loop through standard nutrients first to avoid grabbing multiple labels for one key
+    # Loop through my target list first, rather than the OCR results.
+    # This stops the code from accidentally mapping two different values to the same nutrient.
     for std_key, aliases in target_nutrients.items():
         for i, item in enumerate(result):
             if i in used_indices: continue
@@ -289,13 +299,14 @@ def extract_nutrients(image_bytes):
                     break # Success! Move to the next nutrient
 
     # Pass 2: Solve Alignment
+    # Take all those floating numbers we found in Case B and lock them to the dominant column.
     resolved = solve_column_clustering(candidates_pool)
     for k, cand in resolved.items():
         extracted[k] = cand['val']
         if 'idx' in cand: 
             used_indices.add(cand['idx'])
 
-    # 5. DRAW VISUALS
+    # 5. Generate the visual feedback image
     annotated_b64 = draw_visuals(target_img, result, used_indices)
 
     return {

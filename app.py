@@ -248,12 +248,6 @@ def api_predict_gi_sim():
     except requests.exceptions.ConnectionError:
         pass
 
-    
-
-    # FALLBACK: No sugar dependency
-    return jsonify({
-        "gi": 55, "gl": 12, "gi_color": "#ffc107", "ai_message": "Simulation: Offline."
-    })
 
 @app.route('/scan/save_entry', methods=['POST'])
 def api_save_entry_sim():
