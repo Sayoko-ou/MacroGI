@@ -11,11 +11,23 @@
 
             <div id="initial-actions" class="upload-actions">
                 <button class="upload-btn" onclick="document.getElementById('file-upload').click()">📁 Upload</button>
-                <button class="upload-btn" onclick="document.getElementById('camera-upload').click()">📷 Camera</button>
+                <button class="upload-btn" onclick="startCamera()">📷 Camera</button>
             </div>
+
+            <div id="live-camera-container" class="hidden" style="text-align: center; margin-top: 15px;">
+                <video id="live-video" autoplay playsinline style="width: 100%; max-width: 400px; border-radius: 8px; background-color: #000;"></video>
+                
+                <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+                    <button id="snap-photo-btn" class="main-btn">📸 Snap Photo</button>
+                    <button id="cancel-camera-btn" style="padding: 10px 20px; border-radius: 8px; border: 1px solid #ccc; background: #fff; cursor: pointer;">Cancel</button>
+                </div>
+            </div>
+            
+            <canvas id="camera-canvas" hidden></canvas>
 
             <input type="file" id="file-upload" accept="image/*" hidden>
             <input type="file" id="camera-upload" accept="image/*" capture="environment" hidden>
+            
             <button id="scan-now-btn" class="main-btn hidden">Run Scanner</button>
             
             <div id="loading-spinner" class="hidden" style="margin-top:15px; text-align:center;">

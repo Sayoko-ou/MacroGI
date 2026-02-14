@@ -19,6 +19,91 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveEntryBtn = document.getElementById('save-entry-btn');
     const addRowBtn = document.getElementById('add-row-btn');
     const retakePrompt = document.getElementById('retake-prompt');
+    const liveCameraContainer = document.getElementById('live-camera-container');
+    const liveVideo = document.getElementById('live-video');
+    const snapPhotoBtn = document.getElementById('snap-photo-btn');
+    const cancelCameraBtn = document.getElementById('cancel-camera-btn');
+    const cameraCanvas = document.getElementById('camera-canvas');
+    let stream = null; // Holds the live video feed
+
+    // 1. Turn on the camera
+    window.startCamera = async () => {
+        try {
+            // Request camera access. 'facingMode: environment' prefers the back camera on phones.
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment' } 
+            });
+            liveVideo.srcObject = stream;
+            
+            // Hide initial buttons, show the video feed
+            initialActions.classList.add('hidden');
+            liveCameraContainer.classList.remove('hidden');
+        } catch (err) {
+            alert("Camera access denied or unavailable on this device.");
+            console.error(err);
+        }
+    };
+
+    // 2. Snap the photo
+    if (snapPhotoBtn) {
+        snapPhotoBtn.addEventListener('click', () => {
+            // Match the canvas size to the video feed
+            cameraCanvas.width = liveVideo.videoWidth;
+            cameraCanvas.height = liveVideo.videoHeight;
+            
+            // Draw the current video frame onto the canvas
+            const context = cameraCanvas.getContext('2d');
+            context.drawImage(liveVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
+            
+            // Convert the canvas drawing into a JPG file
+            cameraCanvas.toBlob((blob) => {
+                // Create a fake "File" object so the rest of your the doesn't know the difference
+                selectedFile = new File([blob], "webcam-snapshot.jpg", { type: "image/jpeg" });
+                
+                // Send it to existing preview logic
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    previewContainer.classList.remove('hidden');
+                    liveCameraContainer.classList.add('hidden');
+                    scanNowBtn.classList.remove('hidden');
+                };
+                reader.readAsDataURL(selectedFile);
+                
+                // Turn off the webcam light
+                stopCamera();
+            }, 'image/jpeg');
+        });
+    }
+
+    // 3. Helper to stop the camera
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+    }
+
+    // 4. Handle Cancel Button
+    if (cancelCameraBtn) {
+        cancelCameraBtn.addEventListener('click', () => {
+            stopCamera();
+            liveCameraContainer.classList.add('hidden');
+            initialActions.classList.remove('hidden');
+        });
+    }
+
+    // Modify your existing clearBtn logic to ensure the camera shuts off if they clear the UI
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            selectedFile = null;
+            stopCamera(); // Make sure the webcam turns off
+            previewContainer.classList.add('hidden');
+            initialActions.classList.remove('hidden');
+            scanNowBtn.classList.add('hidden');
+            if(retakePrompt) retakePrompt.classList.add('hidden');
+        });
+    }
 
     // CONFIG: My database and models expect these specific nutrients. 
     // I excluded Sugar here because it's usually bundled into Carbohydrates for my GI calculation.
