@@ -42,7 +42,23 @@
                 <div class="input-group" style="flex: 1;">
                     <label>Insulin (Units)</label>
                     <input type="number" id="insulin-input" step="0.5" placeholder="0.0" class="std-input">
-                    <div id="insulin-hint" class="hidden" style="color: #28a745; font-size: 0.85em; margin-top: 4px; font-weight: bold;"></div>
+                    <div id="insulin-advisor-hint" class="hidden" style="margin-top: 6px; padding: 8px 10px; background: #f0fdf4; border-left: 3px solid #28a745; border-radius: 4px; font-size: 0.8em; line-height: 1.4;">
+                        <div style="font-weight: 700; color: #166534; margin-bottom: 2px;">Suggested: <span id="advisor-total">--</span> units</div>
+                        <div style="color: #555;" id="advisor-breakdown"></div>
+                        <div style="color: #999; font-size: 0.85em; margin-top: 3px;">Estimate only — consult your healthcare provider.</div>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 20px; margin-top: 8px;">
+                <div class="input-group" style="flex: 1;">
+                    <label>ISF <span style="font-weight: 400; color: #aaa;">(optional)</span></label>
+                    <input type="number" id="isf-input" step="0.1" min="1" class="std-input" placeholder="Auto">
+                    <small style="color: #aaa; font-size: 0.75em;" id="isf-scan-hint">mg/dL per unit</small>
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label>ICR <span style="font-weight: 400; color: #aaa;">(optional)</span></label>
+                    <input type="number" id="icr-input" step="0.1" min="1" class="std-input" placeholder="Auto">
+                    <small style="color: #aaa; font-size: 0.75em;" id="icr-scan-hint">g carbs per unit</small>
                 </div>
             </div>
         </div>

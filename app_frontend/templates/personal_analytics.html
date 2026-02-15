@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-page">
+    <div class="dashboard-nav">
+        <a href="/" class="nav-tab">NUTRI DASHBOARD</a>
+        <a href="/dashboard" class="nav-tab">FOOD DIARY</a>
+        <a href="/personal-analytics" class="nav-tab active">PERSON ANALYTICS</a>
+    </div>
+
+    <div class="dashboard-container">
+        <div class="metrics-row">
+            <div class="stat-card glucose-card">
+                <div class="stat-header">
+                    <span class="stat-label">CURRENT GLUCOSE</span>
+                    <div class="live-indicator"></div>
+                </div>
+                <div class="stat-main">
+                    <span id="current-glucose-value">--</span>
+                    <span class="stat-unit">mg/dL</span>
+                </div>
+                <div class="stat-footer">
+                    <small id="last-reading-time">Syncing sensor...</small>
+                </div>
+            </div>
+
+            <div class="stat-card forecast-card">
+                <div class="stat-header">
+                    <span class="stat-label">+30 MIN</span>
+                </div>
+                <div class="stat-main">
+                    <span id="pred-30" class="forecast-value">--</span>
+                    <span class="stat-unit">mg/dL</span>
+                </div>
+            </div>
+
+            <div class="stat-card forecast-card">
+                <div class="stat-header">
+                    <span class="stat-label">+60 MIN</span>
+                </div>
+                <div class="stat-main">
+                    <span id="pred-60" class="forecast-value">--</span>
+                    <span class="stat-unit">mg/dL</span>
+                </div>
+            </div>
+
+            <div class="stat-card forecast-card">
+                <div class="stat-header">
+                    <span class="stat-label">+90 MIN</span>
+                </div>
+                <div class="stat-main">
+                    <span id="pred-90" class="forecast-value">--</span>
+                    <span class="stat-unit">mg/dL</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <div class="card-header">
+                <h3>24-Hour Glucose Profile</h3>
+                <p class="subtitle">5-minute interval streaming</p>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="glucoseChart"></canvas>
+            </div>
+        </div>
+
+        <div class="insights-card">
+            <div class="insights-header">
+                <span class="ai-sparkle">✨</span>
+                <h3>AI Personal Insights</h3>
+            </div>
+            <div class="insights-body" id="ai-insights-content">
+                <p>Analyzing your metabolic trends...</p>
+            </div>
+        </div>
+
+        <div class="shap-card" id="shap-container" style="display: none;">
+            <div class="card-header">
+                <h3>What's Driving Your Forecast</h3>
+                <p class="subtitle">Feature contributions to the 60-minute prediction (SHAP)</p>
+            </div>
+            <p class="shap-summary" id="shap-summary"></p>
+            <div class="shap-chart-wrapper">
+                <canvas id="shapChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.1"></script>
+<script src="{{ url_for('static', filename='personal_analytics.js') }}"></script>
+
+<style>
+    :root { --primary: #4e73df; --success: #1cc88a; --warning: #f6c23e; --danger: #e74a3b; --forecast: #e74a3b; }
+    .dashboard-container { max-width: 1100px; margin: 20px auto; padding: 0 20px; display: flex; flex-direction: column; gap: 25px; }
+
+    .metrics-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .stat-card { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border-left: 6px solid var(--primary); width: 280px; }
+    .stat-card.forecast-card { border-left-color: var(--forecast); width: 180px; }
+    .stat-label { font-size: 0.75rem; font-weight: 800; color: #a1a1a1; letter-spacing: 1.2px; }
+    .stat-main { margin: 10px 0; }
+    #current-glucose-value { font-size: 3.5rem; font-weight: 800; color: #333; }
+    .forecast-value { font-size: 2.2rem; font-weight: 800; color: #333; }
+    
+    .chart-card { background: #fff; border-radius: 16px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+    .chart-wrapper { height: 400px; width: 100%; margin-top: 20px; }
+    
+    .insights-card { background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%); border: 1px solid #d1d9ff; border-radius: 16px; padding: 25px; }
+    .ai-sparkle { font-size: 1.5rem; margin-right: 10px; }
+    .live-indicator { width: 10px; height: 10px; background: var(--success); border-radius: 50%; float: right; animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+    .shap-card { background: #fff; border-radius: 16px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+    .shap-chart-wrapper { height: 280px; width: 100%; margin-top: 15px; }
+    .shap-summary { font-size: 0.95rem; color: #555; margin: 10px 0 0 0; font-style: italic; }
+</style>
+{% endblock %}                                                                  
