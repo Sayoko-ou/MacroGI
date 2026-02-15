@@ -351,8 +351,8 @@ def api_predict_gi_sim():
             print("="*40 + "\n")
             
             return jsonify(response.json())
-    except requests.exceptions.ConnectionError:
-        pass
+    except requests.exceptions.ConnectionError as e:
+        print(e)
 
 
 @app.route('/scan/auto-isf-icr')

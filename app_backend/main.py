@@ -79,70 +79,57 @@ def normalize_nutrients(nutrients):
 @app.post("/analyze-food")
 async def analyze_food(request: AnalysisRequest):
     
-    # Normalize nutrients to handle both OCR format and lowercase format
+    # --- PROCESS 1: NORMALIZE NUTRIENTS ---
+    # Handles both OCR format ("Carbohydrate") and lowercase format ("carbs")
     normalized_nutrients = normalize_nutrients(request.nutrients)
     
-    # --- PROCESS 1: TEAGAN'S MODEL (GI) ---
+    # --- PROCESS 2: TEAGAN'S MODEL (GI) ---
+    # (If your teammate updated this function to return two values, 
+    # change this to: predicted_gi, predicted_gl = predict_gi_sklearn(...) )
     predicted_gi = predict_gi_sklearn(normalized_nutrients)
     
-    # --- PROCESS 2: CALCULATE GL (Glycemic Load) = (GI * carb) / 100 ---
-    # Get carbohydrate value (handle different key variations)
+    # --- PROCESS 3: CALCULATE GL ---
+    # Glycemic Load = (GI * carbs) / 100
     carbs = float(normalized_nutrients.get('carbohydrate', 0) or 
                   normalized_nutrients.get('carbs', 0) or 0)
-    
     predicted_gl = (predicted_gi * carbs) / 100
     
-    # --- PROCESS 3: WEICONG'S MODEL (Insulin) ---
-    # It needs the result from Process 1
+    # --- PROCESS 4: WEICONG'S MODEL (Insulin) ---
     suggested_insulin = predict_insulin_dosage(normalized_nutrients, predicted_gi)
     
-    # --- PROCESS 4: GENAI (Advisor) ---
+    # --- PROCESS 5: GENAI (Advisor) ---
     ai_tip = get_food_fact(request.food_name, normalized_nutrients, predicted_gi, predicted_gl)
-
     
+    # --- PROCESS 6: GI COLOR LOGIC ---
+    gi_color = '#28a745' # Default: Green (Low GI)
+    if predicted_gi >= 55: 
+        gi_color = '#ffc107' # Yellow (Medium GI)
+    if predicted_gi >= 70: 
+        gi_color = '#dc3545' # Red (High GI)
+
+    # --- PROCESS 7: SAVE TO SUPABASE ---
+    supabase_status = "skipped"
+    try:
+        # Note: Ensure this matches your import (save_gi_gl vs save_gi_gl_endpoint)
+        supabase_result = save_gi_gl(predicted_gi, predicted_gl)
+        if supabase_result.get("error"):
+            print(f"⚠️ Supabase save failed: {supabase_result['error']}")
+            supabase_status = "failed"
+        else:
+            print(f"✅ Saved to Supabase: GI={predicted_gi}, GL={predicted_gl}")
+            supabase_status = "success"
+    except Exception as e:
+        print(f"⚠️ Supabase save error: {e}")
+        supabase_status = "failed"
+
+    # --- FINAL RETURN (Cleaned up, no duplicates) ---
     return {
         "gi": int(predicted_gi),
-        "gl": int(predicted_gl),
-        "gi_color": "#28a745" if predicted_gi < 55 else "#dc3545",
-        "ai_message": ai_tip
-    }
-
-@app.post("/analyze-food")
-async def analyze_food(request: AnalysisRequest):
-
-    # --- PROCESS 1: TEAGAN'S MODEL (GI) ---
-    predicted_gi, predicted_gl = predict_gi_sklearn(request.nutrients)
-    
-    # --- PROCESS 2: WEICONG'S MODEL (Insulin) ---
-    suggested_insulin = predict_insulin_dosage(request.nutrients, predicted_gi)
-    
-    # --- PROCESS 3: GENAI (Advisor) ---
-    ai_tip = get_food_fact(request.food_name, request.nutrients, predicted_gi, predicted_gl)
-    
-    # GI Color Logic
-    gi_color = '#28a745'
-    if predicted_gi >= 55: gi_color = '#ffc107'
-    if predicted_gi >= 70: gi_color = '#dc3545'
-
-    # --- PROCESS 5: SAVE TO SUPABASE ---
-    # Send GI and GL to Supabase endpoint
-    supabase_result = save_gi_gl(predicted_gi, predicted_gl)
-    if supabase_result.get("error"):
-        print(f"⚠️ Supabase save failed: {supabase_result['error']}")
-    else:
-        print(f"✅ Saved to Supabase: GI={predicted_gi}, GL={predicted_gl}")
-
-    return {
-        "gi": predicted_gi,
-        "gl": round(predicted_gl, 2),  # Round to 2 decimal places
+        "gl": round(predicted_gl, 2),
         "gi_color": gi_color,
-        "insulin_suggestion": suggested_insulin,  # <--- Sending this to Frontend
+        "insulin_suggestion": suggested_insulin, 
         "ai_message": ai_tip,
-        "supabase_status": "success" if not supabase_result.get("error") else "failed",
-        "gl": predicted_gl,
-        "gi_color": gi_color,
-        "insulin_suggestion": suggested_insulin,
-        "ai_message": ai_tip
+        "supabase_status": supabase_status
     }
 
 
