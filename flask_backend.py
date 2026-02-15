@@ -736,22 +736,19 @@ def get_nutrients(entry_id):
 # =====================================================================
 
 if __name__ == '__main__':
-    import os
-    
-    # Railway provides PORT environment variable
-    port = int(os.getenv("PORT", 5000))
     is_production = os.getenv("FLASK_ENV") == "production"
 
     if is_production:
-        # In production (Railway/Docker), each service runs in its own container.
-        logger.info(f"Starting Flask Frontend on port {port} (production)...")
-        app.run(host="0.0.0.0", port=port, use_reloader=False)
+        # In production (Docker), each service runs in its own container.
+        # Docker Compose starts the backend separately — no subprocess needed.
+        logger.info("Starting Flask Frontend on port 5000 (production)...")
+        app.run(host="0.0.0.0", port=5000, use_reloader=False)
     else:
         # In development, start both services from one process for convenience.
         logger.info("Starting FastAPI Backend on port 8000...")
         backend_process = subprocess.Popen(
             ["uvicorn", "fastapi_backend:app", "--host", "127.0.0.1", "--port", "8000", "--reload"]
-            # Removed shell=True - it's not needed and can cause issues
+            # Removed shell=True - this was causing the issue
         )
 
         try:
