@@ -114,11 +114,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Validation Helpers ---
 
     function hasNutrientData() {
-        // I don't want users predicting GI on an empty table, so I check if at least one value is > 0.
+        // I don't want users predicting GI on an empty table, so I check if there is at least one row of nutrient data, even if it's 0.
         const values = document.querySelectorAll('.nutrient-val');
-        if (values.length === 0) return false;
-        // Ensure at least one value is > 0
-        return Array.from(values).some(input => parseFloat(input.value) > 0);
+        return values.length > 0;
     }
 
     function getAvailableNutrients() {
