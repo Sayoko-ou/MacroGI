@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/scan.css') }}">
 <div class="scanner-wrapper">
     <div class="scan-left">
         <div class="card upload-card">
@@ -128,5 +129,5 @@
         <p id="save-helper-text" class="error-msg">Complete all fields to save</p>
     </div>
 </div>
-<script src="{{ url_for('static', filename='scan.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
 {% endblock %}

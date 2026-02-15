@@ -29,7 +29,7 @@
   "macrogi_queries": [
     {
       "query": "What are the core features of MacroGI?",
-      "response": "MacroGI revolves around 5 core pillars: (1) Nutritional OCR Extraction for scanning food labels, (2) Glycemic Index Prediction, (3) Insulin Intake Prediction using AI models, (4) Food Diary Management for historical tracking, and (5) A Nutritional Dashboard for personal analytics."
+      "response": "MacroGI revolves around 6 core features:\n\n(1) Nutritional OCR Extraction for scanning food labels\n(2) Glycemic Index Prediction\n(3) Insulin Intake Calculation\n(4) Food Diary Management for historical tracking\n(5) A Nutritional Dashboard for personal analytics\n(6) Glucose Trend Forecasting"
     },
     {
       "query": "How does MacroGI help with my diet?",

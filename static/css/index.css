@@ -1,0 +1,102 @@
+/* --- HERO BANNER (UPDATED) --- */
+.hero {
+    height: 340px; /* Slightly taller to fit button */
+    background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), 
+                url('https://images.unsplash.com/photo-1490645935967-10de6ba17061?q=80&w=2053');
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: white;
+    position: relative;
+}
+
+.hero-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 25px; /* Space between text and button */
+    margin-bottom: 20px; /* Push content up a bit */
+}
+
+.hero h1 { font-size: 48px; font-weight: 800; margin: 0; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+.hero p { font-size: 18px; font-weight: 500; opacity: 0.9; margin: 0; }
+
+/* NEW SCAN BUTTON STYLING */
+.hero-scan-btn {
+    background-color: rgba(255, 255, 255, 0.2); /* Glassmorphism effect */
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    color: white;
+    padding: 12px 30px;
+    border-radius: 50px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+}
+
+.hero-scan-btn:hover {
+    background-color: white;
+    color: var(--nav-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.scan-icon { font-size: 20px; }
+
+
+/* --- CALENDAR STRIP --- */
+.calendar-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: -60px;
+    position: relative;
+    z-index: 10;
+    padding: 0 20px;
+}
+
+.calendar-strip {
+    background-color: var(--white);
+    width: 100%;
+    max-width: 1000px;
+    height: 80px;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 30px;
+    box-sizing: border-box;
+}
+
+.day-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 70px;
+    height: 70px;
+    border-radius: 12px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.day-card:hover { background-color: #f5f5f5; }
+
+.day-card.active {
+    background-color: var(--highlight-blue);
+    box-shadow: 0 4px 10px rgba(87, 138, 214, 0.4);
+    transform: scale(1.05);
+}
+
+.day-name { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-grey); margin-bottom: 2px; }
+.day-num { font-size: 24px; font-weight: 800; color: var(--text-dark); line-height: 1; }
+
+.day-card.active .day-name, .day-card.active .day-num { color: white; }

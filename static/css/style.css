@@ -1,0 +1,191 @@
+/* static/style.css */
+
+/* --- GLOBAL VARIABLES --- */
+:root {
+    --bg-color: #F1F1F3;
+    --nav-blue: #3977D4;
+    --highlight-blue: #578AD6;
+    --white: #FFFFFF;
+    --text-dark: #333333;
+    --text-grey: #888888;
+    --dashboard-chart-height: min(420px, 45vh);
+}
+
+body {
+    background-color: var(--bg-color);
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-top: 70px; 
+}
+
+/* --- FIXED NAVBAR --- */
+.navbar {
+    background-color: var(--nav-blue);
+    height: 70px;
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.nav-content {
+    width: 90%;
+    max-width: 1100px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    color: white;
+    font-weight: 800;
+    font-size: 24px;
+    letter-spacing: -0.5px;
+    text-decoration: none;
+}
+
+/* --- NAVBAR FIXES --- */
+
+/* 1. Force Vertical Alignment */
+.nav-links { 
+    display: flex; 
+    gap: 30px; 
+    align-items: center; /* <--- This aligns text and button perfectly */
+}
+
+/* 2. Style the Logout Button */
+.nav-btn {
+    border: 1px solid rgba(255, 255, 255, 0.5); /* Semi-transparent white border */
+    padding: 8px 24px;
+    border-radius: 50px; /* Pill shape */
+    color: white;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+    letter-spacing: 0.5px;
+}
+
+/* Hover Effect: Turn white with blue text */
+.nav-btn:hover {
+    background-color: white;
+    color: var(--nav-blue); 
+    border-color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.nav-item {
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    text-transform: uppercase;
+    transition: color 0.3s;
+}
+
+.nav-item:hover, .nav-item.active { color: white; }
+
+/* --- DASHBOARD GRID (SIMPLIFIED) --- */
+.dashboard-container {
+    max-width: 100%;
+    margin: 20px auto;
+    padding: 0 8px;
+}
+
+/* Weekly and daily views: fill viewport height */
+#weekly-view .dashboard-container,
+#daily-view .dashboard-container {
+    max-width: 1600px;
+    margin-left: auto;
+    margin-right: auto;
+    min-height: calc(100vh - 240px);
+    display: flex;
+    flex-direction: column;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #444;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* KPI Cards */
+.kpi-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px; /* Increased gap */
+}
+
+.kpi-card {
+    background-color: var(--white);
+    padding: 40px 20px; /* Taller cards */
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    transition: transform 0.2s;
+}
+
+.kpi-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+}
+
+.kpi-value { font-size: 42px; font-weight: 900; color: var(--text-dark); margin-bottom: 5px; }
+.kpi-label { font-size: 12px; font-weight: 700; color: var(--text-grey); text-transform: uppercase; letter-spacing: 2px; }
+
+.view-dashboard-btn {
+    display: inline-block;
+    padding: 15px 40px;
+    background: var(--text-dark);
+    color: white;
+    text-decoration: none;
+    border-radius: 50px;
+    font-weight: 700;
+    transition: all 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 14px;
+}
+
+.view-dashboard-btn:hover {
+    background: #555;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+
+/* --- SPLIT SCANNER LAYOUT --- */
+
+.scanner-wrapper {
+    max-width: 1100px;
+    margin: 40px auto;
+    padding: 0 20px;
+    display: grid;
+    grid-template-columns: 1fr 1.2fr; /* Right side slightly wider for table */
+    gap: 30px;
+    align-items: start; /* Don't stretch height */
+}
+
+/* Common Card Style */
+.card {
+    background: white;
+    border-radius: 16px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    margin-bottom: 20px;
+    border: 1px solid #f0f0f0;
+}
+
+/* --- LEFT COLUMN --- */
+.page-title { margin: 0 0 20px 0; font-size: 28px; color: #333; }

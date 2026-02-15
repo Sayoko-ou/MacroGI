@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='food_diary.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/food_diary.css') }}">
 
 <div class="diary-container">
     <div class="diary-main">
@@ -131,5 +131,5 @@
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='food_diary.js') }}"></script>
+<script src="{{ url_for('static', filename='js/food_diary.js') }}"></script>
 {% endblock %}

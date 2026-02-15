@@ -1,12 +1,13 @@
 {% extends "base.html" %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 <div class="dashboard-page">
     <!-- Navigation Tabs + Month/Year for Weekly/Daily -->
     <div class="dashboard-nav">
         <div class="dashboard-nav-tabs">
             <a href="/dashboard" class="nav-tab active">DASHBOARD</a>
-            <a href="/personal-analytics" class="nav-tab">PERSON ANALYTICS</a>
+            <a href="/personal-analytics" class="nav-tab">PERSONAL ANALYTICS</a>
         </div>
         <div id="dashboard-period-label" class="dashboard-period-label {% if not period_month_year %}hidden{% endif %}">{{ period_month_year }}</div>
     </div>
@@ -186,5 +187,5 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
