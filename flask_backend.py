@@ -747,7 +747,7 @@ if __name__ == '__main__':
         # In development, start both services from one process for convenience.
         logger.info("Starting FastAPI Backend on port 8000...")
         backend_process = subprocess.Popen(
-            ["uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+            ["uvicorn", "fastapi_backend:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
             shell=True
         )
 

@@ -56,7 +56,7 @@ def _build_time_series(cgm_rows: list[dict], meal_rows: list[dict]) -> np.ndarra
         meal_map[key]["carbs"] += float(m.get("carbs") or 0)
         meal_map[key]["insulin"] += float(m.get("insulin") or 0)
 
-    # IOB/COB decay constants (same as main.py)
+    # IOB/COB decay constants
     IOB_DECAY = 0.5 ** (5 / 75)
     COB_DECAY = 0.5 ** (5 / 45)
 
