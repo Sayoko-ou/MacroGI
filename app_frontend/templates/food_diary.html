@@ -49,11 +49,20 @@
 
         <div class="pagination">
             {% if pagination.has_prev %}
-                <a href="{{ url_for('food_diary', page=pagination.prev_num) }}">&laquo; Previous</a>
+                <a href="{{ url_for('food_diary', page=pagination.prev_num, **url_params) }}" class="page-arrow">&laquo;</a>
             {% endif %}
-            <span>Page {{ pagination.page }} of {{ pagination.pages }}</span>
+
+            <div class="page-numbers">
+                {% for p in range(1, pagination.pages + 1) %}
+                    <a href="{{ url_for('food_diary', page=p, **url_params) }}" 
+                    class="page-num {% if p == pagination.page %}active{% endif %}">
+                        {{ p }}
+                    </a>
+                {% endfor %}
+            </div>
+
             {% if pagination.has_next %}
-                <a href="{{ url_for('food_diary', page=pagination.next_num) }}">Next &raquo;</a>
+                <a href="{{ url_for('food_diary', page=pagination.next_num, **url_params) }}" class="page-arrow">&raquo;</a>
             {% endif %}
         </div>
     </div>

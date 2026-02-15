@@ -2,11 +2,13 @@
 
 {% block content %}
 <div class="dashboard-page">
-    <!-- Navigation Tabs -->
+    <!-- Navigation Tabs + Month/Year for Weekly/Daily -->
     <div class="dashboard-nav">
-        <a href="/" class="nav-tab">NUTRI DASHBOARD</a>
-        <a href="/dashboard" class="nav-tab active">FOOD DIARY</a>
-        <a href="#" class="nav-tab">PERSON ANALYTICS</a>
+        <div class="dashboard-nav-tabs">
+            <a href="/dashboard" class="nav-tab active">DASHBOARD</a>
+            <a href="#" class="nav-tab">PERSON ANALYTICS</a>
+        </div>
+        <div id="dashboard-period-label" class="dashboard-period-label {% if not period_month_year %}hidden{% endif %}">{{ period_month_year }}</div>
     </div>
 
     <!-- Dashboard Header: View Selector (Left) and Date Selectors (Right) -->
@@ -40,7 +42,9 @@
                     <button class="week-btn {{ 'active' if week.is_selected else '' }}" 
                             data-week="{{ week.week_num }}" 
                             data-start="{{ week.start_date }}" 
-                            data-end="{{ week.end_date }}">
+                            data-end="{{ week.end_date }}"
+                            data-start-iso="{{ week.start_iso }}"
+                            data-end-iso="{{ week.end_iso }}">
                         W{{ week.week_num }}<br>
                         <small>{{ week.start_date }} - {{ week.end_date }}</small>
                     </button>
@@ -119,20 +123,18 @@
         </div>
 
         <div class="weekly-charts">
-            <div class="chart-card">
+            <div class="chart-card chart-card-with-breakdown">
                 <h3>Weekly Trends</h3>
                 <canvas id="weekly-line-chart"></canvas>
+                <h3 class="chart-subheading">Daily Breakdown</h3>
+                <canvas id="weekly-daily-breakdown"></canvas>
             </div>
             <div class="chart-card">
                 <h3>Top 5 Highest GL food</h3>
                 <canvas id="weekly-bar-chart"></canvas>
-                <canvas id="weekly-pie-chart" style="margin-top: 20px;"></canvas>
+                <h3 class="chart-subheading">Meal type % by GL</h3>
+                <canvas id="weekly-pie-chart" style="margin-top: 8px;"></canvas>
             </div>
-        </div>
-        
-        <div class="chart-card full-width" style="margin-top: 30px;">
-            <h3>Daily Breakdown</h3>
-            <canvas id="weekly-daily-breakdown"></canvas>
         </div>
         </div>
     </div>

@@ -1,0 +1,47 @@
+{
+  "concepts": [
+    {
+      "topic": "Glycemic Index Definition",
+      "keywords": ["what is gi", "definition", "how it works"],
+      "content": "The Glycemic Index (GI) is a rating system for foods containing carbohydrates. It shows how quickly each food affects your blood sugar (glucose) level when that food is eaten on its own."
+    },
+    {
+      "topic": "GI Categories",
+      "keywords": ["low", "medium", "high", "ranges", "categories"],
+      "content": "Low GI: 55 or less. Medium GI: 56 to 69. High GI: 70 or higher."
+    },
+    {
+      "topic": "Benefits of Low GI Diet",
+      "keywords": ["benefits", "why low gi", "healthy", "diabetic advantages"],
+      "content_list": [
+        "Decrease risk of type 2 diabetes.",
+        "Help manage your blood sugar levels and avoid spikes.",
+        "Decrease risk of heart disease and stroke.",
+        "Feel full longer, aiding in weight management."
+      ]
+    },
+    {
+      "topic": "Glycemic Load",
+      "keywords": ["gl", "glycemic load", "portion size"],
+      "content": "Glycemic Load (GL) is calculated by multiplying the GI by the amount of carbohydrates in a serving. A GL of 10 or less is low."
+    }
+  ],
+  "macrogi_queries": [
+    {
+      "query": "What are the core features of MacroGI?",
+      "response": "MacroGI revolves around 5 core pillars: (1) Nutritional OCR Extraction for scanning food labels, (2) Glycemic Index Prediction, (3) Insulin Intake Prediction using AI models, (4) Food Diary Management for historical tracking, and (5) A Nutritional Dashboard for personal analytics."
+    },
+    {
+      "query": "How does MacroGI help with my diet?",
+      "response": "Beyond tracking, MacroGI offers supplementary Gen-AI features including a Dietary Chatbot Advisor and personalized meal recommendations. These tools analyze your history to help you make real-time decisions that stabilize blood sugar."
+    },
+    {
+      "query": "How do I create a food entry?",
+      "response": "Simply navigate to the 'Add Entry' page and upload a photo of a nutritional facts label. The OCR system will automatically parse the data, identifying key metrics like carbohydrates, fiber, and sugars to help calculate GI and insulin needs."
+    },
+    {
+      "query": "How are insulin and GI predictions calculated?",
+      "response": "MacroGI uses machine learning models trained on nutritional datasets to predict the Glycemic Index of a meal and estimate the necessary insulin intake based on the carb content and your user profile."
+    }
+  ]
+}
