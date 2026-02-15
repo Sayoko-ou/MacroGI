@@ -31,7 +31,11 @@ except Exception as e:
 app = Flask(__name__,
             template_folder="app_frontend/templates",
             static_folder="app_frontend/static")
-app.secret_key = os.urandom(24)
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
+
+# --- BACKEND API CONFIG ---
+# In Docker, the backend service is reachable by its service name "backend"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
 # --- DATABASE CONFIG ---
 CLOUD_DB_URL = os.getenv("URL")
@@ -321,7 +325,7 @@ def api_ocr_sim():
     
     try:
         files_to_send = {'file': (file.filename, file.read(), file.mimetype)}
-        response = requests.post("http://127.0.0.1:8000/scan-food", files=files_to_send)
+        response = requests.post(f"{BACKEND_URL}/scan-food", files=files_to_send)
         if response.status_code == 200: return jsonify(response.json())
         else: return jsonify({"error": f"FastAPI Error: {response.text}"}), 500
     except requests.exceptions.ConnectionError:
@@ -340,7 +344,7 @@ def api_predict_gi_sim():
     data = request.json
     data['user_id'] = session.get('user_id')
     try:
-        response = requests.post("http://127.0.0.1:8000/analyze-food", json=data, timeout=3)
+        response = requests.post(f"{BACKEND_URL}/analyze-food", json=data, timeout=3)
         if response.status_code == 200: 
             api_data = response.json()
 
@@ -367,7 +371,7 @@ def api_auto_isf_icr():
         return jsonify({"error": "Unauthorized"}), 401
     try:
         response = requests.get(
-            f"http://127.0.0.1:8000/api/auto-isf-icr?user_id={session['user_id']}", timeout=5)
+            f"{BACKEND_URL}/api/auto-isf-icr?user_id={session['user_id']}", timeout=5)
         if response.status_code == 200:
             return jsonify(response.json())
     except requests.exceptions.ConnectionError:
@@ -381,12 +385,23 @@ def api_insulin_advice():
     data = request.json or {}
     data['user_id'] = session['user_id']
     try:
-        response = requests.post("http://127.0.0.1:8000/api/insulin-advice", json=data, timeout=5)
+        response = requests.post(f"{BACKEND_URL}/api/insulin-advice", json=data, timeout=5)
         if response.status_code == 200:
             return jsonify(response.json())
     except requests.exceptions.ConnectionError:
         pass
     return jsonify({"error": "Insulin advisor unavailable"}), 503
+
+@app.route('/api/glucose-stats')
+def api_glucose_stats():
+    user_id = request.args.get('user_id')
+    try:
+        response = requests.get(f"{BACKEND_URL}/api/glucose-stats?user_id={user_id}", timeout=5)
+        if response.status_code == 200:
+            return jsonify(response.json())
+    except requests.exceptions.ConnectionError:
+        pass
+    return jsonify({"error": "Glucose stats unavailable"}), 503
 
 @app.route('/scan/save_entry', methods=['POST'])
 def api_save_entry_sim():
@@ -647,24 +662,25 @@ def get_nutrients(entry_id):
 
 if __name__ == '__main__':
 
-    print("Starting FastAPI Backend on port 8000...")
-    backend_process = subprocess.Popen(
-        [
-            "uvicorn", 
-            "main:app",          # 1. Changed this (removed 'app_backend.')
-            "--host", "127.0.0.1", 
-            "--port", "8000", 
-            "--reload"
-        ],
-        cwd="app_backend",       # 2. ADDED THIS: Tells Uvicorn to start inside the backend folder!
-        shell=True
-    )
+    is_production = os.getenv("FLASK_ENV") == "production"
 
-    try:
-        # LAUNCH FLASK FRONTEND
-        print("Starting Flask Frontend on port 5000...")
-        app.run(debug=True, port=5000, use_reloader=False) 
-    finally:
-        # CLEANUP: Kill the backend process when Flask stops
-        print("Shutting down backend...")
-        backend_process.terminate()
+    if is_production:
+        # In production (Docker), each service runs in its own container.
+        # Docker Compose starts the backend separately — no subprocess needed.
+        print("Starting Flask Frontend on port 5000 (production)...")
+        app.run(host="0.0.0.0", port=5000, use_reloader=False)
+    else:
+        # In development, start both services from one process for convenience.
+        print("Starting FastAPI Backend on port 8000...")
+        backend_process = subprocess.Popen(
+            ["uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+            cwd="app_backend",
+            shell=True
+        )
+
+        try:
+            print("Starting Flask Frontend on port 5000...")
+            app.run(debug=True, port=5000, use_reloader=False)
+        finally:
+            print("Shutting down backend...")
+            backend_process.terminate()
