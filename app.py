@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import subprocess
 
 # all imports from backend
-from app_backend.database import db
+from database import db
 import json
 from app_backend.modules.fooddiary_query import query_db
 from app_backend.modules.dashboard_query import get_overall_data, get_weekly_data, get_daily_data
@@ -37,8 +37,8 @@ except Exception as e:
     bot = MockBot()
 
 app = Flask(__name__,
-            template_folder="app_frontend/templates",
-            static_folder="app_frontend/static")
+            template_folder="templates",
+            static_folder="static")
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
 
 # --- BACKEND API CONFIG ---
@@ -748,7 +748,6 @@ if __name__ == '__main__':
         logger.info("Starting FastAPI Backend on port 8000...")
         backend_process = subprocess.Popen(
             ["uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
-            cwd="app_backend",
             shell=True
         )
 
