@@ -31,7 +31,11 @@ except Exception as e:
 app = Flask(__name__,
             template_folder="app_frontend/templates",
             static_folder="app_frontend/static")
-app.secret_key = os.urandom(24)
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
+
+# --- BACKEND API CONFIG ---
+# In Docker, the backend service is reachable by its service name "backend"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
 # --- DATABASE CONFIG ---
 CLOUD_DB_URL = os.getenv("URL")
@@ -150,6 +154,9 @@ def dashboard_page():
             selected_week_monday = datetime.strptime(week_start_param, '%Y-%m-%d').date()
             # Normalize to Monday
             selected_week_monday = selected_week_monday - timedelta(days=selected_week_monday.weekday())
+            # Clamp to current week max: no future weeks (no data to show)
+            if selected_week_monday > this_week_monday:
+                selected_week_monday = this_week_monday
         except ValueError:
             selected_week_monday = this_week_monday
     # Week window: center (default), start (selected first), end (selected last)
@@ -163,6 +170,9 @@ def dashboard_page():
     weeks = []
     for i in week_offsets:
         week_start = selected_week_monday + timedelta(days=i * 7)
+        # Only include weeks up to and including current week (no future weeks - no data yet)
+        if week_start > this_week_monday:
+            continue
         week_end = week_start + timedelta(days=6)
         week_num_label = week_start.isocalendar()[1]
         weeks.append({
@@ -173,13 +183,29 @@ def dashboard_page():
             'end_iso': week_end.strftime('%Y-%m-%d'),
             'is_selected': week_start == selected_week_monday
         })
+    # Fill white space: if we filtered future weeks, add more past weeks so we show 5
+    target_count = 5
+    while len(weeks) < target_count and weeks:
+        earliest_start = datetime.strptime(weeks[0]['start_iso'], '%Y-%m-%d').date()
+        one_earlier = earliest_start - timedelta(days=7)
+        week_end = one_earlier + timedelta(days=6)
+        weeks.insert(0, {
+            'week_num': one_earlier.isocalendar()[1],
+            'start_date': one_earlier.strftime('%m/%d'),
+            'end_date': week_end.strftime('%m/%d'),
+            'start_iso': one_earlier.strftime('%Y-%m-%d'),
+            'end_iso': week_end.strftime('%Y-%m-%d'),
+            'is_selected': one_earlier == selected_week_monday
+        })
     
     # Generate days: center (default), start (selected first), end (selected last)
     date_str = request.args.get('date')
     selected_date = today
     if date_str and view == 'daily':
         try:
-            selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            parsed = datetime.strptime(date_str, '%Y-%m-%d').date()
+            # Clamp to today max: no future dates (no data to show yet)
+            selected_date = min(parsed, today)
         except ValueError:
             selected_date = today
     
@@ -195,11 +221,25 @@ def dashboard_page():
     base_date = selected_date if view == 'daily' else today
     for i in day_offsets:
         d = base_date + timedelta(days=i)
+        # Only include today and past days (no future days - no data yet)
+        if d > today:
+            continue
         days.append({
             'day_name': d.strftime('%a').upper(),
             'day_num': d.day,
             'date_str': d.strftime('%Y-%m-%d'),
             'is_selected': d == selected_date if view == 'daily' else (d == today)
+        })
+    # Fill white space: if we filtered future days, add more past days so we show 7
+    day_target = 7
+    while len(days) < day_target and days:
+        earliest = datetime.strptime(days[0]['date_str'], '%Y-%m-%d').date()
+        one_earlier = earliest - timedelta(days=1)
+        days.insert(0, {
+            'day_name': one_earlier.strftime('%a').upper(),
+            'day_num': one_earlier.day,
+            'date_str': one_earlier.strftime('%Y-%m-%d'),
+            'is_selected': one_earlier == selected_date if view == 'daily' else (one_earlier == today)
         })
     
     # Fetch data from Supabase (uses URL/KEY from .env)
@@ -321,7 +361,7 @@ def api_ocr_sim():
     
     try:
         files_to_send = {'file': (file.filename, file.read(), file.mimetype)}
-        response = requests.post("http://127.0.0.1:8000/scan-food", files=files_to_send)
+        response = requests.post(f"{BACKEND_URL}/scan-food", files=files_to_send)
         if response.status_code == 200: return jsonify(response.json())
         else: return jsonify({"error": f"FastAPI Error: {response.text}"}), 500
     except requests.exceptions.ConnectionError:
@@ -340,7 +380,7 @@ def api_predict_gi_sim():
     data = request.json
     data['user_id'] = session.get('user_id')
     try:
-        response = requests.post("http://127.0.0.1:8000/analyze-food", json=data, timeout=3)
+        response = requests.post(f"{BACKEND_URL}/analyze-food", json=data, timeout=3)
         if response.status_code == 200: 
             api_data = response.json()
 
@@ -361,7 +401,7 @@ def api_auto_isf_icr():
         return jsonify({"error": "Unauthorized"}), 401
     try:
         response = requests.get(
-            f"http://127.0.0.1:8000/api/auto-isf-icr?user_id={session['user_id']}", timeout=5)
+            f"{BACKEND_URL}/api/auto-isf-icr?user_id={session['user_id']}", timeout=5)
         if response.status_code == 200:
             return jsonify(response.json())
     except requests.exceptions.ConnectionError:
@@ -375,12 +415,23 @@ def api_insulin_advice():
     data = request.json or {}
     data['user_id'] = session['user_id']
     try:
-        response = requests.post("http://127.0.0.1:8000/api/insulin-advice", json=data, timeout=5)
+        response = requests.post(f"{BACKEND_URL}/api/insulin-advice", json=data, timeout=5)
         if response.status_code == 200:
             return jsonify(response.json())
     except requests.exceptions.ConnectionError:
         pass
     return jsonify({"error": "Insulin advisor unavailable"}), 503
+
+@app.route('/api/glucose-stats')
+def api_glucose_stats():
+    user_id = request.args.get('user_id')
+    try:
+        response = requests.get(f"{BACKEND_URL}/api/glucose-stats?user_id={user_id}", timeout=5)
+        if response.status_code == 200:
+            return jsonify(response.json())
+    except requests.exceptions.ConnectionError:
+        pass
+    return jsonify({"error": "Glucose stats unavailable"}), 503
 
 @app.route('/scan/save_entry', methods=['POST'])
 def api_save_entry_sim():
@@ -641,24 +692,25 @@ def get_nutrients(entry_id):
 
 if __name__ == '__main__':
 
-    print("Starting FastAPI Backend on port 8000...")
-    backend_process = subprocess.Popen(
-        [
-            "uvicorn", 
-            "main:app",          # 1. Changed this (removed 'app_backend.')
-            "--host", "127.0.0.1", 
-            "--port", "8000", 
-            "--reload"
-        ],
-        cwd="app_backend",       # 2. ADDED THIS: Tells Uvicorn to start inside the backend folder!
-        shell=True
-    )
+    is_production = os.getenv("FLASK_ENV") == "production"
 
-    try:
-        # LAUNCH FLASK FRONTEND
-        print("Starting Flask Frontend on port 5000...")
-        app.run(debug=True, port=5000, use_reloader=False) 
-    finally:
-        # CLEANUP: Kill the backend process when Flask stops
-        print("Shutting down backend...")
-        backend_process.terminate()
+    if is_production:
+        # In production (Docker), each service runs in its own container.
+        # Docker Compose starts the backend separately — no subprocess needed.
+        print("Starting Flask Frontend on port 5000 (production)...")
+        app.run(host="0.0.0.0", port=5000, use_reloader=False)
+    else:
+        # In development, start both services from one process for convenience.
+        print("Starting FastAPI Backend on port 8000...")
+        backend_process = subprocess.Popen(
+            ["uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+            cwd="app_backend",
+            shell=True
+        )
+
+        try:
+            print("Starting Flask Frontend on port 5000...")
+            app.run(debug=True, port=5000, use_reloader=False)
+        finally:
+            print("Shutting down backend...")
+            backend_process.terminate()

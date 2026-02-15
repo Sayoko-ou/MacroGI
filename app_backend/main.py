@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
+import os
 # Import your AI modules
 from modules.gi_predictor import predict_gi_sklearn
 from modules.genai_advisor import get_food_fact
@@ -16,20 +17,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# 1. ADD THE PORT THAT YOUR BROWSER IS CURRENTLY USING
-# If your browser address bar says localhost:5173 or 3000, put that here.
-origins = [
-    "http://localhost:8000",   # Your FastAPI port
-    "http://127.0.0.1:8000",
-    "http://localhost:5000",   # Common alternative port
-    "http://localhost:3000",   # Common React port
-     "*"                      # UNCOMMENT THE LINE BELOW IF YOU JUST WANT IT TO WORK
-    # "null"                   # Sometimes needed for local file execution
-]
+allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:5000,http://127.0.0.1:5000").split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # Using "*" is the "Nuclear Option" to stop all CORS errors
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

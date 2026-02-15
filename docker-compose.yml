@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  # --- Frontend Service (Flask) ---
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=production
+      # Docker internal networking: "backend" is the service name below
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # --- Backend Service (FastAPI) ---
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - CORS_ORIGINS=http://localhost:5000,http://frontend:5000
+    restart: unless-stopped

@@ -68,7 +68,7 @@ async function refreshDashboard() {
     const userId = "2";
 
     try {
-        const response = await fetch(`http://localhost:8000/api/glucose-stats?user_id=${userId}`);
+        const response = await fetch(`/api/glucose-stats?user_id=${userId}`);
 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
