@@ -150,6 +150,9 @@ def dashboard_page():
             selected_week_monday = datetime.strptime(week_start_param, '%Y-%m-%d').date()
             # Normalize to Monday
             selected_week_monday = selected_week_monday - timedelta(days=selected_week_monday.weekday())
+            # Clamp to current week max: no future weeks (no data to show)
+            if selected_week_monday > this_week_monday:
+                selected_week_monday = this_week_monday
         except ValueError:
             selected_week_monday = this_week_monday
     # Week window: center (default), start (selected first), end (selected last)
@@ -163,6 +166,9 @@ def dashboard_page():
     weeks = []
     for i in week_offsets:
         week_start = selected_week_monday + timedelta(days=i * 7)
+        # Only include weeks up to and including current week (no future weeks - no data yet)
+        if week_start > this_week_monday:
+            continue
         week_end = week_start + timedelta(days=6)
         week_num_label = week_start.isocalendar()[1]
         weeks.append({
@@ -173,13 +179,29 @@ def dashboard_page():
             'end_iso': week_end.strftime('%Y-%m-%d'),
             'is_selected': week_start == selected_week_monday
         })
+    # Fill white space: if we filtered future weeks, add more past weeks so we show 5
+    target_count = 5
+    while len(weeks) < target_count and weeks:
+        earliest_start = datetime.strptime(weeks[0]['start_iso'], '%Y-%m-%d').date()
+        one_earlier = earliest_start - timedelta(days=7)
+        week_end = one_earlier + timedelta(days=6)
+        weeks.insert(0, {
+            'week_num': one_earlier.isocalendar()[1],
+            'start_date': one_earlier.strftime('%m/%d'),
+            'end_date': week_end.strftime('%m/%d'),
+            'start_iso': one_earlier.strftime('%Y-%m-%d'),
+            'end_iso': week_end.strftime('%Y-%m-%d'),
+            'is_selected': one_earlier == selected_week_monday
+        })
     
     # Generate days: center (default), start (selected first), end (selected last)
     date_str = request.args.get('date')
     selected_date = today
     if date_str and view == 'daily':
         try:
-            selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            parsed = datetime.strptime(date_str, '%Y-%m-%d').date()
+            # Clamp to today max: no future dates (no data to show yet)
+            selected_date = min(parsed, today)
         except ValueError:
             selected_date = today
     
@@ -195,11 +217,25 @@ def dashboard_page():
     base_date = selected_date if view == 'daily' else today
     for i in day_offsets:
         d = base_date + timedelta(days=i)
+        # Only include today and past days (no future days - no data yet)
+        if d > today:
+            continue
         days.append({
             'day_name': d.strftime('%a').upper(),
             'day_num': d.day,
             'date_str': d.strftime('%Y-%m-%d'),
             'is_selected': d == selected_date if view == 'daily' else (d == today)
+        })
+    # Fill white space: if we filtered future days, add more past days so we show 7
+    day_target = 7
+    while len(days) < day_target and days:
+        earliest = datetime.strptime(days[0]['date_str'], '%Y-%m-%d').date()
+        one_earlier = earliest - timedelta(days=1)
+        days.insert(0, {
+            'day_name': one_earlier.strftime('%a').upper(),
+            'day_num': one_earlier.day,
+            'date_str': one_earlier.strftime('%Y-%m-%d'),
+            'is_selected': one_earlier == selected_date if view == 'daily' else (one_earlier == today)
         })
     
     # Fetch data from Supabase (uses URL/KEY from .env)

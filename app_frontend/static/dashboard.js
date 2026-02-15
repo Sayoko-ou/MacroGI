@@ -183,7 +183,9 @@ function initializeWeekSelector() {
                 window.location.href = '/dashboard?view=weekly&week_start=' + startIso + '&week_window=end&scroll=left';
                 return;
             }
-            if (index === lastIndex) {
+            // Only shift to next set if the week has ended (past week); current week = just select in-place
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (index === lastIndex && endIso < todayStr) {
                 window.location.href = '/dashboard?view=weekly&week_start=' + startIso + '&week_window=start&scroll=left';
                 return;
             }
@@ -260,7 +262,11 @@ function navigatePeriod(direction) {
         } else {
             const activeBtn = weekButtons[activeIndex];
             const startIso = activeBtn.getAttribute('data-start-iso');
+            const endIso = activeBtn.getAttribute('data-end-iso');
             if (!startIso) return;
+            const todayStr = new Date().toISOString().split('T')[0];
+            // Don't navigate to future weeks - only block if we're already at current week (right edge)
+            if (direction > 0 && endIso >= todayStr) return;
             const d = new Date(startIso + 'T12:00:00');
             d.setDate(d.getDate() + direction * 7);
             const newStartIso = d.toISOString().split('T')[0];
@@ -283,6 +289,9 @@ function navigatePeriod(direction) {
             const activeBtn = dayButtons[activeIndex];
             const currentDate = activeBtn.getAttribute('data-date');
             if (!currentDate) return;
+            const todayStr = new Date().toISOString().split('T')[0];
+            // Don't navigate to future days - only block if we're already at today (right edge)
+            if (direction > 0 && currentDate >= todayStr) return;
             const date = new Date(currentDate + 'T12:00:00');
             date.setDate(date.getDate() + direction);
             const newDateStr = date.toISOString().split('T')[0];
