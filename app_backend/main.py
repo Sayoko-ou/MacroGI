@@ -1,8 +1,12 @@
+"""FastAPI backend for MacroGI — handles OCR, GI prediction, CGM, and insulin advice."""
+import logging
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
+from collections import defaultdict
 import os
+
 # Import your AI modules
 from modules.gi_predictor import predict_gi_sklearn
 from modules.genai_advisor import get_food_fact
@@ -14,6 +18,8 @@ from modules.insulin_advisor import auto_isf_icr, advise_dose, compute_iob
 from database import db, save_gi_gl
 
 from fastapi.middleware.cors import CORSMiddleware
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -28,21 +34,13 @@ app.add_middleware(
 )
 
 
-class AnalysisRequest(BaseModel):
-    food_name: Optional[str] = "Unknown Food"
-    nutrients: dict 
+# =====================================================================
+# UTILITY FUNCTIONS
+# =====================================================================
 
-@app.post("/scan-food")
-async def scan_food(file: UploadFile = File(...)):
-    image_bytes = await file.read()
-    data = extract_nutrients(image_bytes)
-    return data
-
-
-    
 def normalize_nutrients(nutrients):
     """
-    Normalize nutrient keys from OCR format (e.g., "Carbohydrate", "Total Fat") 
+    Normalize nutrient keys from OCR format (e.g., "Carbohydrate", "Total Fat")
     to lowercase format expected by the model (e.g., "carbs", "fat")
     """
     normalized = {}
@@ -55,48 +53,69 @@ def normalize_nutrients(nutrients):
         'sodium': ['sodium', 'salt'],
         'energy': ['energy', 'calories', 'kcal']
     }
-    
+
     # Convert all keys to lowercase for matching
     nutrients_lower = {k.lower(): v for k, v in nutrients.items()}
-    
+
     for target_key, possible_keys in key_mapping.items():
         for key in possible_keys:
             if key in nutrients_lower:
                 normalized[target_key] = float(nutrients_lower[key] or 0)
                 break
-    
+
     return normalized
 
 
+# =====================================================================
+# OCR ENDPOINTS
+# =====================================================================
+
+class AnalysisRequest(BaseModel):
+    food_name: Optional[str] = "Unknown Food"
+    nutrients: dict
+
+@app.post("/scan-food")
+async def scan_food(file: UploadFile = File(...)):
+    """Process an uploaded food label image through OCR."""
+    image_bytes = await file.read()
+    data = extract_nutrients(image_bytes)
+    return data
+
+
+# =====================================================================
+# ANALYSIS ENDPOINTS
+# =====================================================================
+
 @app.post("/analyze-food")
 async def analyze_food(request: AnalysisRequest):
-    
+    """Analyze food nutrients: predict GI/GL, suggest insulin, generate AI tip."""
+
     # --- PROCESS 1: NORMALIZE NUTRIENTS ---
     # Handles both OCR format ("Carbohydrate") and lowercase format ("carbs")
     normalized_nutrients = normalize_nutrients(request.nutrients)
-    
+
     # --- PROCESS 2: TEAGAN'S MODEL (GI) ---
-    # (If your teammate updated this function to return two values, 
+    # (If your teammate updated this function to return two values,
     # change this to: predicted_gi, predicted_gl = predict_gi_sklearn(...) )
     predicted_gi = predict_gi_sklearn(normalized_nutrients)
-    
+
     # --- PROCESS 3: CALCULATE GL ---
     # Glycemic Load = (GI * carbs) / 100
-    carbs = float(normalized_nutrients.get('carbohydrate', 0) or 
+    carbs = float(normalized_nutrients.get('carbohydrate', 0) or
                   normalized_nutrients.get('carbs', 0) or 0)
     predicted_gl = (predicted_gi * carbs) / 100
-    
+
     # --- PROCESS 4: WEICONG'S MODEL (Insulin) ---
     suggested_insulin = predict_insulin_dosage(normalized_nutrients, predicted_gi)
-    
+
     # --- PROCESS 5: GENAI (Advisor) ---
     ai_tip = get_food_fact(request.food_name, normalized_nutrients, predicted_gi, predicted_gl)
-    
+
     # --- PROCESS 6: GI COLOR LOGIC ---
     gi_color = '#28a745' # Default: Green (Low GI)
-    if predicted_gi >= 55: 
+    if predicted_gi >= 55:
         gi_color = '#ffc107' # Yellow (Medium GI)
-    if predicted_gi >= 70: 
+    if predicted_gi >= 70:
         gi_color = '#dc3545' # Red (High GI)
 
     # --- PROCESS 7: SAVE TO SUPABASE ---
@@ -105,13 +124,13 @@ async def analyze_food(request: AnalysisRequest):
         # Note: Ensure this matches your import (save_gi_gl vs save_gi_gl_endpoint)
         supabase_result = save_gi_gl(predicted_gi, predicted_gl)
         if supabase_result.get("error"):
-            print(f"⚠️ Supabase save failed: {supabase_result['error']}")
+            logger.warning("Supabase save failed: %s", supabase_result['error'])
             supabase_status = "failed"
         else:
-            print(f"✅ Saved to Supabase: GI={predicted_gi}, GL={predicted_gl}")
+            logger.info("Saved to Supabase: GI=%s, GL=%s", predicted_gi, predicted_gl)
             supabase_status = "success"
     except Exception as e:
-        print(f"⚠️ Supabase save error: {e}")
+        logger.error("Supabase save error: %s", e)
         supabase_status = "failed"
 
     # --- FINAL RETURN (Cleaned up, no duplicates) ---
@@ -119,11 +138,15 @@ async def analyze_food(request: AnalysisRequest):
         "gi": int(predicted_gi),
         "gl": round(predicted_gl, 2),
         "gi_color": gi_color,
-        "insulin_suggestion": suggested_insulin, 
+        "insulin_suggestion": suggested_insulin,
         "ai_message": ai_tip,
         "supabase_status": supabase_status
     }
 
+
+# =====================================================================
+# CGM ENDPOINTS
+# =====================================================================
 
 class CgmData(BaseModel):
     user_id: int
@@ -139,20 +162,16 @@ class MealData(BaseModel):
 
 @app.post("/cgms-data")
 async def receive_cgm_data(data: CgmData):
-   
+    """Receive and store a CGM reading."""
+
     db.table("cgm_data").insert({
         "patient_id": data.user_id,
         "bg_value": data.bg_value,
         "timestamp": data.timestamp.isoformat()
     }).execute()
 
-    
-
     return {"status": "success"}
 
-
-from datetime import datetime, timedelta
-from collections import defaultdict
 
 class CgmReading(BaseModel):
     glucose: float
@@ -167,17 +186,18 @@ class ForecastRequest(BaseModel):
 
 @app.post("/forecast-bg")
 async def forecast_bg(request: ForecastRequest):
+    """Forecast blood glucose at 30/60/90 minutes ahead."""
     readings_dicts = [r.model_dump() for r in request.readings]
     result = forecast_glucose(readings_dicts)
     return result
 
 
-
 @app.get("/api/glucose-stats")
 async def get_glucose_stats(user_id: str):
+    """Return glucose chart data, forecasts, and AI insights for a user."""
     # 1. Fetch last 24 hours of data for the chart
     yesterday = (datetime.now() - timedelta(hours=24)).isoformat()
-    
+
     response = db.table("cgm_data") \
         .select("bg_value, timestamp") \
         .eq("patient_id", user_id) \
@@ -226,15 +246,15 @@ async def get_glucose_stats(user_id: str):
         # Build a map: round each meal timestamp to nearest 5 min
         # and accumulate carbs/insulin per slot
         meal_map = defaultdict(lambda: {"carbs": 0.0, "insulin": 0.0})
-        for m in meal_events:
-            m_ts = datetime.fromisoformat(m["created_at"])
+        for meal in meal_events:
+            m_ts = datetime.fromisoformat(meal["created_at"])
             # Round to nearest 5 min
             m_rounded = m_ts.replace(second=0, microsecond=0)
             minute = m_rounded.minute
             m_rounded = m_rounded.replace(minute=(minute // 5) * 5)
             key = m_rounded.isoformat()
-            meal_map[key]["carbs"] += float(m.get("carbs") or 0)
-            meal_map[key]["insulin"] += float(m.get("insulin") or 0)
+            meal_map[key]["carbs"] += float(meal.get("carbs") or 0)
+            meal_map[key]["insulin"] += float(meal.get("insulin") or 0)
 
         # Compute IOB and COB using exponential decay across the full
         # lookback window, then extract values for the last 12 readings
@@ -277,8 +297,6 @@ async def get_glucose_stats(user_id: str):
                 "timestamp": r["timestamp"],
             })
 
-            print(readings_for_model)
-
         try:
             preds = forecast_glucose(readings_for_model, user_id=user_id, explain=True)
             last_ts = datetime.fromisoformat(latest_reading["timestamp"])
@@ -290,7 +308,7 @@ async def get_glucose_stats(user_id: str):
             ]
             explanations = preds.get("explanations")
         except Exception as e:
-            print(f"Forecast error: {e}")
+            logger.error("Forecast error: %s", e)
 
     return {
         "chart_data": chart_data,
@@ -303,6 +321,10 @@ async def get_glucose_stats(user_id: str):
         "insights": insight
     }
 
+
+# =====================================================================
+# FORECAST & FINE-TUNING ENDPOINTS
+# =====================================================================
 
 class FinetuneRequest(BaseModel):
     user_id: str
@@ -321,7 +343,9 @@ async def finetune_model(request: FinetuneRequest):
         return {"success": False, "message": str(e), "metrics": None}
 
 
-# ─── Insulin Advisor Endpoints ───────────────────────────────────────
+# =====================================================================
+# INSULIN ADVISOR ENDPOINTS
+# =====================================================================
 
 @app.get("/api/auto-isf-icr")
 async def get_auto_isf_icr(user_id: str):

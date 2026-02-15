@@ -5,6 +5,7 @@ Loads the base model, freezes the LSTM layer, and fine-tunes the Dense
 head on a single user's CGM + meal data (transfer learning).
 """
 
+import logging
 import os
 import json
 import numpy as np
@@ -14,6 +15,8 @@ from collections import defaultdict
 from tensorflow import keras
 
 from database import db
+
+logger = logging.getLogger(__name__)
 
 # ── Paths ──
 _MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
@@ -189,8 +192,8 @@ def finetune_for_user(user_id: str) -> dict:
     # Actually the base model predicts raw mg/dL, so targets should be raw.
     _, Y_raw = _create_sequences(ts_data)
 
-    print(f"[bg_finetune] User {user_id}: {len(X)} sequences, "
-          f"{len(cgm_rows)} CGM readings, {len(meal_rows)} meal events.")
+    logger.info("User %s: %d sequences, %d CGM readings, %d meal events.",
+                user_id, len(X), len(cgm_rows), len(meal_rows))
 
     # ── 6. Load base model, freeze LSTM, unfreeze Dense ──
     model = keras.models.load_model(_BASE_MODEL_PATH)
@@ -221,7 +224,7 @@ def finetune_for_user(user_id: str) -> dict:
     user_model_path = os.path.join(_USER_MODEL_DIR,
                                    f"bg_forecast_user_{user_id}.keras")
     model.save(user_model_path)
-    print(f"[bg_finetune] Saved fine-tuned model → {user_model_path}")
+    logger.info("Saved fine-tuned model -> %s", user_model_path)
 
     # Return last-epoch metrics
     final_loss = float(history.history['loss'][-1])

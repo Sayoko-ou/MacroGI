@@ -1,21 +1,29 @@
+"""OCR engine for extracting nutritional data from food label images."""
+import logging
 import cv2
 import numpy as np
 import re
 import base64
 from collections import Counter
 from rapidocr_onnxruntime import RapidOCR
-from deep_translator import GoogleTranslator 
+from deep_translator import GoogleTranslator
 import os
 
+logger = logging.getLogger(__name__)
+
+# --- Constants ---
+MIN_CONTOUR_SIZE = 50       # Minimum width/height for table detection candidates
+COLUMN_BIN_SIZE = 40        # Pixel bin size for column alignment clustering
+
 # I'm using a try-except here because TensorFlow can be heavy.
-# If it fails to load on whatever machine this runs on, the app won't crash, 
+# If it fails to load on whatever machine this runs on, the app won't crash,
 # it just skips the smart table cropping part and scans the whole image.
 try:
     import tensorflow as tf
     TF_AVAILABLE = True
 except ImportError:
     TF_AVAILABLE = False
-    print("⚠️ TensorFlow not found. Table detection will be skipped.")
+    logger.warning("TensorFlow not found. Table detection will be skipped.")
 
 ocr = RapidOCR()
 table_model = None
@@ -27,12 +35,12 @@ def load_models(model_path="models/table_classifier.keras"):
     if TF_AVAILABLE and os.path.exists(model_path):
         try:
             table_model = tf.keras.models.load_model(model_path)
-            print(f"Table Detector loaded from {model_path}")
+            logger.info("Table Detector loaded from %s", model_path)
         except Exception as e:
-            print(f"Could not load Keras model: {e}")
+            logger.error("Could not load Keras model: %s", e)
             table_model = None
     else:
-        print("ℹ️ Table detection model not found. Using full image OCR.")
+        logger.info("Table detection model not found. Using full image OCR.")
 
 # --- HELPER: VISUALIZATION ---
 def draw_visuals(img, results, used_indices):
@@ -42,11 +50,11 @@ def draw_visuals(img, results, used_indices):
     Green boxes = text the OCR saw but we ignored.
     """
     if not results or img is None: return None
-    
+
     viz = img.copy()
     for i, item in enumerate(results):
         box = np.array(item[0]).astype(int)
-        
+
         # Red if used, Green if ignored
         if i in used_indices:
             color = (0, 0, 255) # Red (BGR)
@@ -54,7 +62,7 @@ def draw_visuals(img, results, used_indices):
         else:
             color = (0, 255, 0) # Green (BGR)
             thickness = 1
-            
+
         cv2.polylines(viz, [box], True, color, thickness)
 
     # Encode to Base64 string for HTML display
@@ -82,15 +90,15 @@ def get_table_crop(img):
     candidates = []
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
-        if w > 50 and h > 50:
+        if w > MIN_CONTOUR_SIZE and h > MIN_CONTOUR_SIZE:
             crop = img[y:y+h, x:x+w]
-            
+
             # AI Check
             c_gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
             ai_input = cv2.resize(c_gray, (128, 128))
             ai_input = np.expand_dims(ai_input, axis=-1)
             ai_input = np.expand_dims(ai_input, axis=0) / 255.0
-            
+
             conf = table_model.predict(ai_input, verbose=0)[0][0]
             if conf > 0.5:
                 candidates.append({'crop': crop, 'conf': conf})
@@ -99,7 +107,7 @@ def get_table_crop(img):
     candidates = sorted(candidates, key=lambda x: x['conf'], reverse=True)
     if candidates:
         return candidates[0]['crop'], True
-    
+
     return img, False
 
 # Step 2: Text Parsing & Validation
@@ -121,40 +129,40 @@ def is_physically_possible(nutrient, val, unit, text):
     """
     # If the text is way too long, it's probably an ingredient paragraph, not a table value
     if len(text) > 15 or unit == "%": return False
-    
+
     if nutrient == "Sodium":
         # Allow empty units ("") because OCR often misses the tiny "mg" text
         if unit != "" and unit not in ['mg', 'g']: return False
-        
+
         # If unit is 'g', value shouldn't be huge (e.g., 500g salt is impossible)
-        if unit == 'g' and val > 10: return False 
+        if unit == 'g' and val > 10: return False
         return True
-    
+
     if nutrient == "Energy":
         if unit in ['kcal', 'kj', 'cal', 'cals']: return True
         # If no unit, assume kcal if the number is significant
         if unit == "" and val > 5: return True
         return False
-    
+
     # Default grams check for Protein, Fat, Carbs, Fiber
     if unit in ['kcal', 'kj', 'cal']: return False
     if unit in ['g', 'mg', 'mcg', '']: return True
-    
+
     return False
 
 
 def translate_if_foreign(text):
-    """Quick helper to translate foreign labels into English so my keyword matcher still works."""
+    """Quick helper to translate foreign labels into English so the keyword matcher still works."""
     if not all(ord(c) < 128 for c in text):
         try: return translator.translate(text).lower()
-        except: return text.lower()
+        except Exception: return text.lower()
     return text.lower()
 
 
 # Step 3: Column Clustering (Handling weird formatting)
 def find_all_candidates(key_idx, key_box, all_results, used_indices, nutrient_name):
     """
-    If the value isn't right next to the label, this function looks to the 
+    If the value isn't right next to the label, this function looks to the
     right of the label (e.g., 'Protein') to find all floating numbers that could be a match.
     """
     key_y = (key_box[0][1] + key_box[2][1]) / 2
@@ -195,8 +203,8 @@ def solve_column_clustering(candidates_pool):
 
     if not all_x: return {}
 
-    # Find the dominant X-coordinate (grouping them in 40px bins)
-    bins = [round(x / 40) * 40 for x in all_x]
+    # Find the dominant X-coordinate (grouping them in COLUMN_BIN_SIZE px bins)
+    bins = [round(x / COLUMN_BIN_SIZE) * COLUMN_BIN_SIZE for x in all_x]
     common = Counter(bins).most_common()
     if not common: return {}
 
@@ -215,7 +223,7 @@ def solve_column_clustering(candidates_pool):
                 if dist < min_dist:
                     min_dist = dist
                     best_cand = c
-        
+
         if best_cand:
             final_results[key] = best_cand
 
@@ -230,10 +238,10 @@ def extract_nutrients(image_bytes):
     # 1. Decode Image
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    
+
     # 2. Crop Table
     target_img, found_table = get_table_crop(img)
-    
+
     # 3. Run OCR
     ocr_input = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
     result, _ = ocr(ocr_input)
@@ -244,8 +252,8 @@ def extract_nutrients(image_bytes):
     # 4. Search logic
     # Set default values to 0. This ensures the frontend doesn't crash expecting a key that doesn't exist.
     extracted = {
-        "Calories": 0, "Protein": 0, "Total Fat": 0, 
-        "Carbohydrate": 0, "Fiber": 0, "Sodium": 0, "Salt": 0 
+        "Calories": 0, "Protein": 0, "Total Fat": 0,
+        "Carbohydrate": 0, "Fiber": 0, "Sodium": 0, "Salt": 0
     }
     used_indices = set()
     candidates_pool = {}
@@ -267,7 +275,7 @@ def extract_nutrients(image_bytes):
     for std_key, aliases in target_nutrients.items():
         for i, item in enumerate(result):
             if i in used_indices: continue
-            
+
             # Translate text to handle foreign nutrition labels
             raw_text = item[1]
             translated_text = translate_if_foreign(raw_text)
@@ -275,17 +283,17 @@ def extract_nutrients(image_bytes):
 
             if any(alias in translated_text for alias in aliases):
                 # Ignore long strings that might be paragraphs/ingredients
-                if len(translated_text) > 30: continue 
+                if len(translated_text) > 30: continue
 
                 # Case A: Value is inside the same text box (e.g., "Protein 5g")
                 clean_text = translated_text
                 for a in aliases: clean_text = clean_text.replace(a, "")
                 v_num, v_unit, v_raw = parse_value(clean_text)
-                
+
                 # Check for "Calories" logic in sanity check
                 # (Passing std_key as "Energy" to internal validator for back-compat)
                 val_key = "Energy" if std_key == "Calories" else std_key
-                
+
                 if v_num is not None and is_physically_possible(val_key, v_num, v_unit, clean_text):
                     extracted[std_key] = v_num
                     used_indices.add(i)
@@ -303,7 +311,7 @@ def extract_nutrients(image_bytes):
     resolved = solve_column_clustering(candidates_pool)
     for k, cand in resolved.items():
         extracted[k] = cand['val']
-        if 'idx' in cand: 
+        if 'idx' in cand:
             used_indices.add(cand['idx'])
 
     # 5. Generate the visual feedback image

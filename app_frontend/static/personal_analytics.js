@@ -61,6 +61,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 3. Now that the chart exists, fetch the data
     refreshDashboard();
+
+    // 4. Auto-refresh every 5 minutes
+    setInterval(refreshDashboard, 300000);
 });
 
 
@@ -211,7 +214,3 @@ function renderShapChart(explanations) {
         }
     });
 }
-
-// Run on load and every 5 minutes
-refreshDashboard();
-setInterval(refreshDashboard, 300000);

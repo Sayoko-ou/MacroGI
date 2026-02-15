@@ -7,12 +7,15 @@ at models/user_models/bg_forecast_user_{id}.keras it will be used
 instead of the base model.
 """
 
+import logging
 import os
 import json
 import numpy as np
 import joblib
 from tensorflow import keras
 from modules.bg_explainer import explain_forecast
+
+logger = logging.getLogger(__name__)
 
 # ── Paths (relative to app_backend/) ──
 _MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
@@ -32,7 +35,7 @@ if os.path.exists(_MODEL_PATH):
     with open(_META_PATH) as f:
         _meta = json.load(f)
 else:
-    print(f"[bg_forecast] Model not found at {_MODEL_PATH} — forecast disabled.")
+    logger.warning("Model not found at %s — forecast disabled.", _MODEL_PATH)
 
 # ── Cache for per-user models ──
 _user_models: dict[str, keras.Model] = {}
@@ -52,7 +55,7 @@ def _get_model_for_user(user_id: str | None) -> keras.Model:
         _USER_MODEL_DIR, f"bg_forecast_user_{user_id}.keras")
 
     if os.path.exists(user_model_path):
-        print(f"[bg_forecast] Loading fine-tuned model for user {user_id}")
+        logger.info("Loading fine-tuned model for user %s", user_id)
         user_model = keras.models.load_model(user_model_path)
         _user_models[user_id] = user_model
         return user_model
@@ -162,6 +165,6 @@ def forecast_glucose(recent_readings: list[dict],
             )
             result["explanations"] = explanations
         except Exception as e:
-            print(f"[bg_forecast] SHAP explanation failed: {e}")
+            logger.warning("SHAP explanation failed: %s", e)
 
     return result

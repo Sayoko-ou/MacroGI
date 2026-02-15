@@ -2,10 +2,13 @@
 Dashboard data aggregation from Supabase (meal_data table).
 Uses URL and KEY from .env for Supabase connection.
 """
+import logging
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 from app_backend.modules.fooddiary_query import query_db
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_created_at(entry):
@@ -34,6 +37,7 @@ def _parse_month_sort(s):
 
 
 def _safe_float(val, default=0):
+    """Safely convert a value to float, returning default on failure."""
     try:
         return float(val) if val is not None else default
     except (ValueError, TypeError):
@@ -42,7 +46,7 @@ def _safe_float(val, default=0):
 
 def get_overall_data(user_id, days=30):
     """Aggregate meal_data for overall dashboard (last N days)."""
-    end = datetime.utcnow()
+    end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
     start_str = start.strftime('%Y-%m-%dT%H:%M:%S')
     end_str = end.strftime('%Y-%m-%dT%H:%M:%S')
@@ -56,7 +60,7 @@ def get_overall_data(user_id, days=30):
     }
     # PostgREST: add second filter via or - we use gte and fetch, then filter in Python
     entries, _ = query_db('meal_data', params)
-    entries = [e for e in entries if _parse_created_at(e) and _parse_created_at(e) <= end]
+    entries = [e for e in entries if _parse_created_at(e) and _parse_created_at(e) <= end.replace(tzinfo=None)]
 
     # Aggregate by month
     monthly = defaultdict(lambda: {'calories': 0, 'carbs': 0, 'gl': 0})
@@ -64,23 +68,23 @@ def get_overall_data(user_id, days=30):
     food_gi = []
     food_carb = []
 
-    for e in entries:
-        dt = _parse_created_at(e)
+    for entry in entries:
+        dt = _parse_created_at(entry)
         if not dt:
             continue
         month_key = dt.strftime('%b %y')
-        cal = _safe_float(e.get('calories'))
-        carbs = _safe_float(e.get('carbs'))
-        gl = _safe_float(e.get('gl'))
-        gi = _safe_float(e.get('gi'))
-        meal = (e.get('mealtype') or 'Other').capitalize()
+        cal = _safe_float(entry.get('calories'))
+        carbs = _safe_float(entry.get('carbs'))
+        gl = _safe_float(entry.get('gl'))
+        gi = _safe_float(entry.get('gi'))
+        meal = (entry.get('mealtype') or 'Other').capitalize()
 
         monthly[month_key]['calories'] += cal
         monthly[month_key]['carbs'] += carbs
         monthly[month_key]['gl'] += gl
         meal_gl[meal] += gl
-        food_gi.append({'name': e.get('foodname') or 'Unknown', 'gi': gi})
-        food_carb.append({'name': e.get('foodname') or 'Unknown', 'carbs': carbs})
+        food_gi.append({'name': entry.get('foodname') or 'Unknown', 'gi': gi})
+        food_carb.append({'name': entry.get('foodname') or 'Unknown', 'carbs': carbs})
 
     # Sort months chronologically (last 7 months)
     sorted_months = sorted(monthly.keys(), key=lambda m: _parse_month_sort(m))
@@ -132,16 +136,16 @@ def get_weekly_data(user_id, start_date, end_date):
         d = start_date + timedelta(days=i)
         daily[d.strftime('%a')] = {'calories': 0, 'carbs': 0, 'gl': 0}
 
-    for e in entries:
-        dt = _parse_created_at(e)
+    for entry in entries:
+        dt = _parse_created_at(entry)
         if not dt or dt.date() < start_date.date() or dt.date() > end_date.date():
             continue
         day_key = dt.strftime('%a')
-        cal = _safe_float(e.get('calories'))
-        carbs = _safe_float(e.get('carbs'))
-        gl = _safe_float(e.get('gl'))
-        meal = (e.get('mealtype') or 'Other').capitalize()
-        food_gl[e.get('foodname') or 'Unknown'] += gl
+        cal = _safe_float(entry.get('calories'))
+        carbs = _safe_float(entry.get('carbs'))
+        gl = _safe_float(entry.get('gl'))
+        meal = (entry.get('mealtype') or 'Other').capitalize()
+        food_gl[entry.get('foodname') or 'Unknown'] += gl
         meal_counts[meal] += gl
         if day_key in daily:
             daily[day_key]['calories'] += cal
@@ -189,32 +193,32 @@ def get_daily_data(user_id, target_date):
     }
     entries, _ = query_db('meal_data', params)
     end_dt = datetime.strptime(end_str, '%Y-%m-%dT%H:%M:%S')
-    entries = [e for e in entries if _parse_created_at(e) and _parse_created_at(e) <= end_dt]
+    entries = [entry for entry in entries if _parse_created_at(entry) and _parse_created_at(entry) <= end_dt]
 
     food_entries = []
     total_gl = total_carbs = total_cal = 0
 
-    for e in entries:
-        dt = _parse_created_at(e)
+    for entry in entries:
+        dt = _parse_created_at(entry)
         if not dt:
             continue
-        cal = _safe_float(e.get('calories'))
-        carbs = _safe_float(e.get('carbs'))
-        gl = _safe_float(e.get('gl'))
+        cal = _safe_float(entry.get('calories'))
+        carbs = _safe_float(entry.get('carbs'))
+        gl = _safe_float(entry.get('gl'))
         total_gl += gl
         total_carbs += carbs
         total_cal += cal
         food_entries.append({
             'time': dt.strftime('%H:%M'),
-            'food': e.get('foodname') or 'Unknown',
+            'food': entry.get('foodname') or 'Unknown',
             'gl': round(gl),
         })
 
     # Line chart data (by entry time)
     labels = [fe['time'] for fe in food_entries]
-    carb_vals = [_safe_float(e.get('carbs')) for e in entries]
-    gl_vals = [_safe_float(e.get('gl')) for e in entries]
-    cal_vals = [_safe_float(e.get('calories')) for e in entries]
+    carb_vals = [_safe_float(entry.get('carbs')) for entry in entries]
+    gl_vals = [_safe_float(entry.get('gl')) for entry in entries]
+    cal_vals = [_safe_float(entry.get('calories')) for entry in entries]
 
     if not labels:
         labels = ['--']

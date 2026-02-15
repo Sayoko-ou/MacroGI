@@ -1,5 +1,8 @@
+"""Insulin advisor: auto-calculates ISF/ICR from TDD and advises dosing."""
+import logging
 from datetime import datetime, timedelta
-import math
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_tdd(db, user_id):

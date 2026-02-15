@@ -41,6 +41,7 @@ function appendMessage(text, type) {
     msgDiv.classList.add(type === 'user' ? 'user-message' : 'bot-message');
 
     if (type === 'bot') {
+        // Note: relies on marked.js built-in sanitization for XSS protection
         msgDiv.innerHTML = marked.parse(text);
     } else {
         msgDiv.textContent = text;
