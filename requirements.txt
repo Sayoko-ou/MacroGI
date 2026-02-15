@@ -18,3 +18,4 @@ supabase==2.28.0
 tensorflow==2.20.0
 google-generativeai
 uvicorn[standard]
+gunicorn==23.0.0
