@@ -1,6 +1,10 @@
+"""Food diary database query helper for Supabase/PostgREST."""
+import logging
 from dotenv import load_dotenv
 import os
 import requests
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -15,7 +19,7 @@ database_headers = {
 
 
 def query_db(table, params=None):
-    """Enhanced helper to fetch data from Supabase/PostgREST"""
+    """Enhanced helper to fetch data from Supabase/PostgREST."""
     url = f"{CLOUD_DB_URL}/rest/v1/{table}"
 
     # Add 'Prefer' header to get the total row count for pagination
@@ -24,13 +28,13 @@ def query_db(table, params=None):
 
     try:
         response = requests.get(url, headers=headers, params=params)
-        
+
         if response.status_code != 200:
             try:
                 error_info = response.json()
-                print(f"DEBUG DB ERROR: {error_info.get('message')} - {error_info.get('hint')}")
-            except:
-                print(f"DEBUG DB ERROR: Status {response.status_code}")
+                logger.warning("DB error: %s - %s", error_info.get('message'), error_info.get('hint'))
+            except Exception:
+                logger.warning("DB error: Status %s", response.status_code)
 
         response.raise_for_status()
 
@@ -41,8 +45,8 @@ def query_db(table, params=None):
         return response.json(), total_count
 
     except requests.exceptions.HTTPError as err:
-        print(f"HTTP Error occurred: {err}")
+        logger.error("HTTP Error occurred: %s", err)
         return [], 0
     except Exception as err:
-        print(f"An unexpected error occurred: {err}")
+        logger.error("An unexpected error occurred: %s", err)
         return [], 0

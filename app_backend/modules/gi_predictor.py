@@ -1,7 +1,10 @@
-# app_backend/modules/gi_predictor.py
+"""GI (Glycemic Index) prediction using a trained Random Forest model."""
+import logging
 import joblib
 import pandas as pd
 import os
+
+logger = logging.getLogger(__name__)
 
 # Get the directory where this file is located
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,21 +20,21 @@ feature_names = None
 if os.path.exists(MODEL_PATH):
     try:
         regressor = joblib.load(MODEL_PATH)
-        print("GI Model Loaded")
+        logger.info("GI Model Loaded")
     except Exception as e:
-        print(f"GI Model file exists but failed to load: {e}")
+        logger.error("GI Model file exists but failed to load: %s", e)
 else:
-    print(f"ℹGI Model not found at: {MODEL_PATH}")
-    print(f"   Current working directory: {os.getcwd()}")
-    print("   Using Math Fallback.")
+    logger.info("GI Model not found at: %s", MODEL_PATH)
+    logger.info("   Current working directory: %s", os.getcwd())
+    logger.info("   Using Math Fallback.")
 
 # Load feature names if available
 if os.path.exists(FEATURE_NAMES_PATH):
     try:
         feature_names = joblib.load(FEATURE_NAMES_PATH)
-        print(f"Feature names loaded: {list(feature_names)}")
-    except:
-        print("Feature names file exists but failed to load.")
+        logger.info("Feature names loaded: %s", list(feature_names))
+    except Exception:
+        logger.warning("Feature names file exists but failed to load.")
         # Fallback to default feature names
         feature_names = ['Sugar_g', 'Fiber_g', 'Carbohydrate_g', 'Fat_g', 'Protein_g', 'Sodium_g']
 else:
@@ -39,9 +42,10 @@ else:
     feature_names = ['Sugar_g', 'Fiber_g', 'Carbohydrate_g', 'Fat_g', 'Protein_g', 'Sodium_g']
 
 def predict_gi_sklearn(nutrients):
+    """Predict GI value from nutrient data using the trained sklearn model."""
     if regressor is None:
         return None
-    
+
     try:
         # Map feature names to nutrient dictionary keys
         # Handles variations like 'Sugar_g', 'Sugar', etc.
@@ -61,16 +65,16 @@ def predict_gi_sklearn(nutrients):
                 return nutrients.get('sodium', 0)
             else:
                 return 0
-        
+
         # Create DataFrame with features in the exact order expected by the model
         features_dict = {name: get_feature_value(name) for name in feature_names}
         features = pd.DataFrame([features_dict])
-        
+
         # Ensure columns are in the correct order
         features = features[feature_names]
-        
+
         predicted = regressor.predict(features)[0]
         return float(predicted)
     except Exception as e:
-        print(f"Error during prediction: {e}")
+        logger.error("Error during prediction: %s", e)
         return None

@@ -1,6 +1,10 @@
+"""GenAI food advisor using HuggingFace Inference API (Llama 3.1)."""
+import logging
 import os
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 HF_API_KEY = os.getenv("HF_TOKEN")
@@ -20,7 +24,7 @@ def get_food_fact(food_name, nutrients, predicted_gi, predicted_gl):
 
     prompt_messages = [
         {
-            "role": "user", 
+            "role": "user",
             "content": (
                 f"Write a single, practical 10-to-15 word dietary tip for eating {food_name}. "
                 f"GI: {predicted_gi}, GL: {predicted_gl}, Nutrients: {nutrients}. "
@@ -40,12 +44,12 @@ def get_food_fact(food_name, nutrients, predicted_gi, predicted_gl):
             max_tokens=35,
             temperature=0.6
         )
-        
+
         tip = response.choices[0].message.content.strip()
         # Cleaning up the response in case the AI gets wordy
         return tip if tip else "No tip generated."
 
     except Exception as e:
-        print(f"💥 AI Error: {e}")
+        logger.error("AI Error: %s", e)
         # Soft fallback to keep the UI clean
         return "Simulation: Offline."
