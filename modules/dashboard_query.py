@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
-from app_backend.modules.fooddiary_query import query_db
+from modules.fooddiary_query import query_db
 
 logger = logging.getLogger(__name__)
 

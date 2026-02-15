@@ -12,8 +12,8 @@ import subprocess
 # all imports from backend
 from database import db
 import json
-from app_backend.modules.fooddiary_query import query_db
-from app_backend.modules.dashboard_query import get_overall_data, get_weekly_data, get_daily_data
+from modules.fooddiary_query import query_db
+from modules.dashboard_query import get_overall_data, get_weekly_data, get_daily_data
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ MAX_DASHBOARD_DAYS = 90     # Maximum days for dashboard overall view
 
 bot = None
 try:
-    from app_backend.modules.chatbot import MacroGIBot
+    from modules.chatbot import MacroGIBot
     bot = MacroGIBot()
     logger.info("Real AI Chatbot Connected")
 except Exception as e:
