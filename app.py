@@ -235,6 +235,83 @@ def dashboard_page():
                          period_month_year=period_month_year)
 
 
+
+@app.route('/personal-analytics')
+def personal_analytics_page():
+    if not is_logged_in(): return redirect(url_for('login_page'))
+    
+    greeting = get_greeting()
+    view = request.args.get('view', 'overall')
+    
+    # Generate weeks (last 7 weeks)
+    today = datetime.now().date()
+    weeks = []
+    for i in range(6, -1, -1):
+        # Calculate week start (Monday)
+        days_since_monday = today.weekday()
+        week_start = today - timedelta(days=days_since_monday + (i * 7))
+        week_end = week_start + timedelta(days=6)
+        weeks.append({
+            'week_num': 7 - i,
+            'start_date': week_start.strftime('%m/%d'),
+            'end_date': week_end.strftime('%m/%d'),
+            'is_selected': i == 0
+        })
+    
+    # Generate days (last 7 days)
+    # Check if a specific date was requested for daily view
+    date_str = request.args.get('date')
+    selected_date = today
+    if date_str and view == 'daily':
+        try:
+            selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            selected_date = today
+    
+    days = []
+    # Show 7 days centered around selected date (or today)
+    base_date = selected_date if view == 'daily' else today
+    for i in range(-3, 4):  # 3 days before, selected day, 3 days after
+        d = base_date + timedelta(days=i)
+        days.append({
+            'day_name': d.strftime('%a').upper(),
+            'day_num': d.day,
+            'date_str': d.strftime('%Y-%m-%d'),
+            'is_selected': d == selected_date if view == 'daily' else (d == today)
+        })
+    
+    # Generate sample data based on selected date
+    date_for_seed = selected_date if view == 'daily' else today
+    # Use selected_date for daily view, today for weekly/overall
+    random.seed(date_for_seed.toordinal())
+    
+    weekly_data = {
+        'glycaemic_load': random.randint(600, 800),
+        'carbohydrates': random.randint(800, 1200),
+        'calories': random.randint(8000, 12000)
+    }
+    
+    daily_data = {
+        'glycaemic_load': random.randint(80, 120),
+        'carbohydrates': random.randint(100, 200),
+        'calories': random.randint(1200, 2500),
+        'food_entries': [
+            {'time': '09:00', 'food': 'Bread', 'gl': 100},
+            {'time': '12:00', 'food': 'McDonalds', 'gl': 400},
+            {'time': '19:00', 'food': 'Snacks', 'gl': 100}
+        ]
+    }
+    
+    return render_template('personal_analytics.html',
+                         greeting=greeting,
+                         user=session.get('user_name'),
+                         view=view,
+                         weeks=weeks,
+                         days=days,
+                         weekly_data=weekly_data,
+                         daily_data=daily_data)
+
+
 # --- API ROUTES (Simulating Microservices) ---
 
 @app.route('/scan/ocr', methods=['POST'])
@@ -261,6 +338,7 @@ def api_ocr_sim():
 @app.route('/scan/predict_gi', methods=['POST'])
 def api_predict_gi_sim():
     data = request.json
+    data['user_id'] = session.get('user_id')
     try:
         response = requests.post("http://127.0.0.1:8000/analyze-food", json=data, timeout=3)
         if response.status_code == 200: 
@@ -276,6 +354,33 @@ def api_predict_gi_sim():
     except requests.exceptions.ConnectionError:
         pass
 
+
+@app.route('/scan/auto-isf-icr')
+def api_auto_isf_icr():
+    if not session.get('user_id'):
+        return jsonify({"error": "Unauthorized"}), 401
+    try:
+        response = requests.get(
+            f"http://127.0.0.1:8000/api/auto-isf-icr?user_id={session['user_id']}", timeout=5)
+        if response.status_code == 200:
+            return jsonify(response.json())
+    except requests.exceptions.ConnectionError:
+        pass
+    return jsonify({"isf": 50, "icr": 10, "tdd": None, "source": "default"})
+
+@app.route('/scan/insulin-advice', methods=['POST'])
+def api_insulin_advice():
+    if not session.get('user_id'):
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.json or {}
+    data['user_id'] = session['user_id']
+    try:
+        response = requests.post("http://127.0.0.1:8000/api/insulin-advice", json=data, timeout=5)
+        if response.status_code == 200:
+            return jsonify(response.json())
+    except requests.exceptions.ConnectionError:
+        pass
+    return jsonify({"error": "Insulin advisor unavailable"}), 503
 
 @app.route('/scan/save_entry', methods=['POST'])
 def api_save_entry_sim():
