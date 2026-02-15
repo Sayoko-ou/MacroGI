@@ -142,17 +142,18 @@ def home():
             'is_selected': d == selected_date
         })
 
-    # KPI Simulation
-    random.seed(selected_date.toordinal())
-    gi_val = random.randint(40, 75)
-    gi_color = '#28a745' if gi_val < 55 else '#ffc107' if gi_val < 70 else '#dc3545'
-
-    kpi_data = {
-        'calories': random.randint(1200, 2500),
-        'sugar': random.randint(20, 80),
-        'gi': gi_val,
-        'gi_color': gi_color
-    }
+    # KPI from database: latest total for selected date (glycemic load, calories, carbohydrates)
+    user_id = session.get('user_id')
+    kpi_data = {'glycaemic_load': 0, 'calories': 0, 'carbohydrates': 0}
+    try:
+        daily = get_daily_data(user_id, selected_date)
+        kpi_data = {
+            'glycaemic_load': daily.get('glycaemic_load', 0),
+            'calories': daily.get('calories', 0),
+            'carbohydrates': daily.get('carbohydrates', 0),
+        }
+    except Exception as e:
+        logger.error("Home KPI load error: %s", e)
 
     return render_template('index.html', greeting=greeting, user=session.get('user_name'), kpi=kpi_data, dates=dates)
 

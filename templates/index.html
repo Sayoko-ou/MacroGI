@@ -36,16 +36,16 @@
         
         <div class="kpi-row">
             <div class="kpi-card">
+                <div class="kpi-value">{{ kpi.glycaemic_load }}</div>
+                <div class="kpi-label">Glycaemic Load</div>
+            </div>
+            <div class="kpi-card">
                 <div class="kpi-value">{{ kpi.calories }}</div>
                 <div class="kpi-label">Calories (kcal)</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-value">{{ kpi.sugar }}g</div>
-                <div class="kpi-label">Sugar</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-value" style="color: {{ kpi.gi_color }};">{{ kpi.gi }}</div>
-                <div class="kpi-label">Avg GI</div>
+                <div class="kpi-value">{{ kpi.carbohydrates }}g</div>
+                <div class="kpi-label">Carbohydrates</div>
             </div>
         </div>
 
