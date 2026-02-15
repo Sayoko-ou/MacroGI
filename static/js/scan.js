@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         VALID_NUTRIENTS.forEach(name => {
             const val = nutrients[name];
-            if (val !== undefined && val !== null) { 
+            if (val && val > 0) {
                 nutrientTableBody.innerHTML += createRow(name, val, false);
             }
         });
