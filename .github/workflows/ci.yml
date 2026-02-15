@@ -33,7 +33,7 @@ jobs:
 
       - name: Run flake8 (syntax errors & critical issues only)
         run: |
-          flake8 app.py app_backend/ \
+          flake8 flask_backend.py fastapi_backend.py database.py modules/ \
             --count \
             --select=E9,F63,F7,F82 \
             --show-source \

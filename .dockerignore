@@ -24,6 +24,9 @@ docs/
 # ML training scripts (not needed at runtime)
 ml_training/
 
+# CGM simulator (development/testing only)
+cgm_simulator/
+
 # OS files
 .DS_Store
 Thumbs.db
