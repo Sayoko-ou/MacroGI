@@ -218,14 +218,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (glValueDisplay) glValueDisplay.textContent = data.gl;
 
                 document.querySelector('.ai-message').innerHTML = `💡 ${data.ai_message || 'Balanced meal.'}`;
-                
-                if (document.getElementById('insulin-hint')) {
-                    document.getElementById('insulin-hint').classList.remove('hidden');
-                    document.getElementById('insulin-hint').innerHTML = `🤖 AI Suggests: ${data.insulin_suggestion} units`;
-                }
-                
+
                 giResultArea.classList.remove('hidden');
                 giPredicted = true;
+
+                // Fetch insulin advice using scanned carbs
+                fetchInsulinAdvice(nutrientData);
             }
         } finally { 
             predictGiBtn.textContent = "Predict GI & GL"; 
@@ -310,4 +308,78 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     foodNameInput.addEventListener('input', validateFormState);
+
+    // --- Insulin Advisor ---
+
+    // Load auto ISF/ICR placeholders on page load
+    (async function loadAutoISFICR() {
+        try {
+            const res = await fetch('/scan/auto-isf-icr');
+            const data = await res.json();
+            if (data.error) return;
+
+            const isfInput = document.getElementById('isf-input');
+            const icrInput = document.getElementById('icr-input');
+            const isfHint = document.getElementById('isf-scan-hint');
+            const icrHint = document.getElementById('icr-scan-hint');
+
+            if (isfInput) isfInput.placeholder = data.isf;
+            if (icrInput) icrInput.placeholder = data.icr;
+
+            if (data.source === 'calculated') {
+                if (isfHint) isfHint.textContent = `Auto: ${data.isf} (TDD ${data.tdd}u/day)`;
+                if (icrHint) icrHint.textContent = `Auto: ${data.icr} (TDD ${data.tdd}u/day)`;
+            }
+        } catch (err) {
+            console.log("Auto ISF/ICR unavailable:", err);
+        }
+    })();
+
+    async function fetchInsulinAdvice(nutrientData) {
+        const carbs = parseFloat(nutrientData.carbs || nutrientData.carbohydrate || 0);
+        if (carbs <= 0) return;
+
+        const hintDiv = document.getElementById('insulin-advisor-hint');
+        const totalSpan = document.getElementById('advisor-total');
+        const breakdownDiv = document.getElementById('advisor-breakdown');
+
+        const body = { planned_carbs: carbs };
+        const isfVal = document.getElementById('isf-input').value;
+        const icrVal = document.getElementById('icr-input').value;
+        if (isfVal) body.isf = parseFloat(isfVal);
+        if (icrVal) body.icr = parseFloat(icrVal);
+
+        try {
+            const res = await fetch('/scan/insulin-advice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const data = await res.json();
+
+            if (data.error) {
+                console.log("Insulin advisor:", data.error);
+                return;
+            }
+
+            totalSpan.textContent = data.total_dose.toFixed(1);
+
+            const parts = [];
+            if (data.meal_dose > 0) parts.push(`Meal: ${data.meal_dose.toFixed(1)}u`);
+            if (data.correction_dose > 0) parts.push(`Correction: ${data.correction_dose.toFixed(1)}u`);
+            if (data.iob_adjustment > 0) parts.push(`IOB: -${data.iob_adjustment.toFixed(1)}u`);
+            parts.push(`BG: ${Math.round(data.current_bg)} mg/dL`);
+            breakdownDiv.textContent = parts.join(' | ');
+
+            hintDiv.classList.remove('hidden');
+
+            // Pre-fill the insulin input if empty
+            const insulinInput = document.getElementById('insulin-input');
+            if (insulinInput && !insulinInput.value) {
+                insulinInput.value = data.total_dose.toFixed(1);
+            }
+        } catch (err) {
+            console.error("Insulin advice error:", err);
+        }
+    }
 });
