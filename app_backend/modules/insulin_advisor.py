@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import math
 
 
@@ -51,13 +51,14 @@ def auto_isf_icr(db, user_id):
     else:
         return {"isf": 50, "icr": 10, "tdd": None, "source": "default"}
 
-
 def compute_iob(db, user_id):
     """
     Compute current Insulin on Board using exponential decay (75-min half-life).
     Looks back 5 hours for insulin events.
     """
-    lookback = (datetime.now() - timedelta(hours=5)).isoformat()
+    # Fix 1: Use UTC time for the lookback so it matches Supabase format
+    now_utc = datetime.now(timezone.utc)
+    lookback = (now_utc - timedelta(hours=5)).isoformat()
 
     response = db.table("meal_data") \
         .select("insulin, created_at") \
@@ -67,7 +68,6 @@ def compute_iob(db, user_id):
         .execute()
 
     rows = response.data or []
-    now = datetime.now()
     iob = 0.0
     half_life = 75  # minutes
 
@@ -75,8 +75,12 @@ def compute_iob(db, user_id):
         insulin = float(row.get("insulin") or 0)
         if insulin <= 0:
             continue
+        
+        # Fix 2: Parse the Supabase timestamp (which includes a timezone)
         event_time = datetime.fromisoformat(row["created_at"])
-        elapsed_min = (now - event_time).total_seconds() / 60
+        
+        # Calculate elapsed minutes safely using UTC
+        elapsed_min = (now_utc - event_time).total_seconds() / 60
         remaining = insulin * (0.5 ** (elapsed_min / half_life))
         iob += remaining
 

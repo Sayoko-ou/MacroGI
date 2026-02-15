@@ -11,7 +11,7 @@ from modules.insulin_predictor import predict_insulin_dosage
 from modules.bg_forecast import forecast_glucose, invalidate_user_model_cache
 from modules.bg_finetune import finetune_for_user
 from modules.insulin_advisor import auto_isf_icr, advise_dose, compute_iob
-from database import db, save_gi_gl
+from database import db
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -86,9 +86,6 @@ async def analyze_food(request: AnalysisRequest):
                   normalized_nutrients.get('carbs', 0) or 0)
     predicted_gl = (predicted_gi * carbs) / 100
     
-    # --- PROCESS 4: WEICONG'S MODEL (Insulin) ---
-    suggested_insulin = predict_insulin_dosage(normalized_nutrients, predicted_gi)
-    
     # --- PROCESS 5: GENAI (Advisor) ---
     ai_tip = get_food_fact(request.food_name, normalized_nutrients, predicted_gi, predicted_gl)
     
@@ -99,29 +96,12 @@ async def analyze_food(request: AnalysisRequest):
     if predicted_gi >= 70: 
         gi_color = '#dc3545' # Red (High GI)
 
-    # --- PROCESS 7: SAVE TO SUPABASE ---
-    supabase_status = "skipped"
-    try:
-        # Note: Ensure this matches your import (save_gi_gl vs save_gi_gl_endpoint)
-        supabase_result = save_gi_gl(predicted_gi, predicted_gl)
-        if supabase_result.get("error"):
-            print(f"⚠️ Supabase save failed: {supabase_result['error']}")
-            supabase_status = "failed"
-        else:
-            print(f"✅ Saved to Supabase: GI={predicted_gi}, GL={predicted_gl}")
-            supabase_status = "success"
-    except Exception as e:
-        print(f"⚠️ Supabase save error: {e}")
-        supabase_status = "failed"
-
     # --- FINAL RETURN (Cleaned up, no duplicates) ---
     return {
         "gi": int(predicted_gi),
-        "gl": round(predicted_gl, 2),
+        "gl": round(predicted_gl, 0),
         "gi_color": gi_color,
-        "insulin_suggestion": suggested_insulin, 
         "ai_message": ai_tip,
-        "supabase_status": supabase_status
     }
 
 
