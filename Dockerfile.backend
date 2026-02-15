@@ -2,34 +2,21 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for OpenCV
+# Minimal OpenCV dependencies for headless operation
 RUN apt-get update && apt-get install -y \
-    libxcb1 \
-    libxcb-xinerama0 \
-    libxcb-randr0 \
-    libxcb-render0 \
-    libxcb-shape0 \
-    libxcb-shm0 \
-    libxcb-xfixes0 \
-    libxcb-sync1 \
-    libxcb-cursor0 \
-    libxcb-icccm4 \
-    libxcb-image0 \
-    libxcb-keysyms1 \
-    libxcb-util1 \
-    libgl1-mesa-glx \
     libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY . .
 
 EXPOSE 5000
 ENV FLASK_ENV=production
 
-# IMPORTANT: Only run Flask, not FastAPI
 CMD ["python", "-u", "flask_backend.py"]
