@@ -1,6 +1,8 @@
 // 1. Declare globally at the top
 let glucoseChart;
 let shapChart;
+let currentExplanations = null;
+let activeHorizon = "60min";
 
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('glucoseChart').getContext('2d');
@@ -59,10 +61,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 3. Now that the chart exists, fetch the data
+    // 3. Set up SHAP tab click handlers
+    document.querySelectorAll('.shap-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.shap-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            activeHorizon = this.dataset.horizon;
+            if (currentExplanations) {
+                renderShapChart(currentExplanations, activeHorizon);
+            }
+        });
+    });
+
+    // 4. Now that the chart exists, fetch the data
     refreshDashboard();
 
-    // 4. Auto-refresh every 5 minutes
+    // 5. Auto-refresh every 5 minutes
     setInterval(refreshDashboard, 300000);
 });
 
@@ -120,14 +134,12 @@ async function refreshDashboard() {
         }
 
         // 5. Update AI Insights
-        const insightEl = document.getElementById('ai-insights-content');
-        if (insightEl) {
-            insightEl.innerHTML = `<p>${data.insights}</p>`;
-        }
+        renderInsights(data.insights);
 
         // 6. Update SHAP Explainability Chart
         if (data.explanations && data.explanations["60min"]) {
-            renderShapChart(data.explanations);
+            currentExplanations = data.explanations;
+            renderShapChart(data.explanations, activeHorizon);
         }
 
     } catch (err) {
@@ -146,17 +158,71 @@ function updateForecastCard(id, value) {
     else el.style.color = "#1cc88a";
 }
 
-function renderShapChart(explanations) {
-    const horizon = explanations["60min"];
-    if (!horizon) return;
+// Icon map for insight types
+const INSIGHT_ICONS = {
+    target: "\u{1F3AF}",
+    variability: "\u{1F4C9}",
+    hypo: "\u{26A0}",
+    hyper: "\u{1F525}",
+    trend_up: "\u{2B06}",
+    trend_down: "\u{2B07}",
+    trend_stable: "\u{2705}",
+    dawn: "\u{1F305}",
+    spike: "\u{26A1}",
+    average: "\u{1F4CA}",
+    info: "\u{2139}"
+};
+
+function renderInsights(insights) {
+    const container = document.getElementById('ai-insights-content');
+    if (!container) return;
+
+    // Handle legacy string format (fallback)
+    if (typeof insights === 'string') {
+        container.innerHTML = `<div class="insight-item insight-info">
+            <div class="insight-icon insight-icon-info">i</div>
+            <div class="insight-text"><strong>Insight</strong><p>${insights}</p></div>
+        </div>`;
+        return;
+    }
+
+    if (!Array.isArray(insights) || insights.length === 0) {
+        container.innerHTML = `<div class="insight-item insight-info">
+            <div class="insight-icon insight-icon-info">i</div>
+            <div class="insight-text"><strong>No Data</strong><p>Not enough readings to generate insights.</p></div>
+        </div>`;
+        return;
+    }
+
+    container.innerHTML = insights.map(ins => {
+        const sev = ins.severity || 'info';
+        const icon = INSIGHT_ICONS[ins.icon] || INSIGHT_ICONS.info;
+        return `<div class="insight-item insight-${sev}">
+            <div class="insight-icon insight-icon-${sev}">${icon}</div>
+            <div class="insight-text">
+                <strong>${ins.title}</strong>
+                <p>${ins.body}</p>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderShapChart(explanations, horizon) {
+    horizon = horizon || "60min";
+    const data = explanations[horizon];
+    if (!data) return;
 
     // Sort features by absolute contribution
-    const entries = Object.entries(horizon)
+    const entries = Object.entries(data)
         .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+
+    // Calculate total absolute contribution for percentages
+    const totalAbs = entries.reduce((sum, e) => sum + Math.abs(e[1]), 0);
 
     const labels = entries.map(e => e[0]);
     const values = entries.map(e => e[1]);
-    const colors = values.map(v => v > 0 ? 'rgba(231, 74, 59, 0.8)' : 'rgba(28, 200, 138, 0.8)');
+    const percentages = entries.map(e => totalAbs > 0 ? Math.round(Math.abs(e[1]) / totalAbs * 100) : 0);
+    const colors = values.map(v => v > 0 ? 'rgba(231, 74, 59, 0.75)' : 'rgba(28, 200, 138, 0.75)');
     const borderColors = values.map(v => v > 0 ? '#e74a3b' : '#1cc88a');
 
     const canvas = document.getElementById('shapChart');
@@ -179,38 +245,72 @@ function renderShapChart(explanations) {
         data: {
             labels: labels,
             datasets: [{
-                label: 'Feature Contribution (60-min)',
+                label: `Feature Contribution (${horizon})`,
                 data: values,
                 backgroundColor: colors,
                 borderColor: borderColors,
-                borderWidth: 1
+                borderWidth: 2,
+                borderRadius: 4,
+                barPercentage: 0.7
             }]
         },
         options: {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
+            layout: {
+                padding: { right: 50 }
+            },
             scales: {
                 x: {
-                    title: { display: true, text: 'SHAP Contribution' },
-                    grid: { color: 'rgba(0,0,0,0.05)' }
+                    title: { display: true, text: 'SHAP Contribution', font: { weight: 'bold', size: 12 } },
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                    ticks: { font: { size: 11 } }
                 },
                 y: {
-                    grid: { display: false }
+                    grid: { display: false },
+                    ticks: { font: { size: 12, weight: '600' }, color: '#333' }
                 }
             },
             plugins: {
                 legend: { display: false },
                 tooltip: {
+                    backgroundColor: 'rgba(0,0,0,0.85)',
+                    titleFont: { size: 13, weight: 'bold' },
+                    bodyFont: { size: 12 },
+                    padding: 12,
+                    cornerRadius: 8,
                     callbacks: {
                         label: function(ctx) {
                             const val = ctx.raw;
+                            const idx = ctx.dataIndex;
+                            const pct = percentages[idx];
                             const dir = val > 0 ? 'pushes glucose UP' : 'pushes glucose DOWN';
-                            return `${Math.abs(val).toFixed(4)} — ${dir}`;
+                            return `${pct}% contribution — ${dir}`;
                         }
                     }
                 }
             }
-        }
+        },
+        plugins: [{
+            // Custom plugin to draw percentage labels on bars
+            id: 'barPercentLabels',
+            afterDatasetsDraw(chart) {
+                const ctx = chart.ctx;
+                chart.data.datasets[0].data.forEach((val, i) => {
+                    const meta = chart.getDatasetMeta(0).data[i];
+                    const pct = percentages[i];
+                    if (pct < 1) return;
+                    ctx.save();
+                    ctx.font = 'bold 11px sans-serif';
+                    ctx.fillStyle = '#555';
+                    ctx.textAlign = val >= 0 ? 'left' : 'right';
+                    ctx.textBaseline = 'middle';
+                    const x = val >= 0 ? meta.x + 6 : meta.x - 6;
+                    ctx.fillText(`${pct}%`, x, meta.y);
+                    ctx.restore();
+                });
+            }
+        }]
     });
 }

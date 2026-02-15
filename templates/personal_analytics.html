@@ -73,18 +73,33 @@
                 <h3>AI Personal Insights</h3>
             </div>
             <div class="insights-body" id="ai-insights-content">
-                <p>Analyzing your metabolic trends...</p>
+                <div class="insight-item insight-info">
+                    <div class="insight-icon insight-icon-info">i</div>
+                    <div class="insight-text">
+                        <strong>Analyzing</strong>
+                        <p>Analyzing your metabolic trends...</p>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="shap-card" id="shap-container" style="display: none;">
             <div class="card-header">
                 <h3>What's Driving Your Forecast</h3>
-                <p class="subtitle">Feature contributions to the 60-minute prediction (SHAP)</p>
+                <p class="subtitle">SHAP feature contributions to your glucose prediction</p>
+            </div>
+            <div class="shap-tabs">
+                <button class="shap-tab" data-horizon="30min">30 min</button>
+                <button class="shap-tab active" data-horizon="60min">60 min</button>
+                <button class="shap-tab" data-horizon="90min">90 min</button>
             </div>
             <p class="shap-summary" id="shap-summary"></p>
             <div class="shap-chart-wrapper">
                 <canvas id="shapChart"></canvas>
+            </div>
+            <div class="shap-legend">
+                <span class="shap-legend-item"><span class="shap-dot shap-dot-up"></span> Pushes glucose UP</span>
+                <span class="shap-legend-item"><span class="shap-dot shap-dot-down"></span> Pushes glucose DOWN</span>
             </div>
         </div>
     </div>
@@ -111,12 +126,43 @@
     .chart-wrapper { height: 400px; width: 100%; margin-top: 20px; }
     
     .insights-card { background: linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%); border: 1px solid #d1d9ff; border-radius: 16px; padding: 25px; }
+    .insights-header { display: flex; align-items: center; margin-bottom: 16px; }
+    .insights-header h3 { margin: 0; }
     .ai-sparkle { font-size: 1.5rem; margin-right: 10px; }
+    .insights-body { display: flex; flex-direction: column; gap: 12px; }
+
+    .insight-item { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border-radius: 12px; border-left: 4px solid #ccc; background: rgba(255,255,255,0.7); }
+    .insight-item.insight-good { border-left-color: #1cc88a; background: rgba(28, 200, 138, 0.06); }
+    .insight-item.insight-warning { border-left-color: #f6c23e; background: rgba(246, 194, 62, 0.06); }
+    .insight-item.insight-danger { border-left-color: #e74a3b; background: rgba(231, 74, 59, 0.06); }
+    .insight-item.insight-info { border-left-color: #4e73df; background: rgba(78, 115, 223, 0.06); }
+
+    .insight-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; font-weight: 700; }
+    .insight-icon-good { background: rgba(28, 200, 138, 0.15); color: #1cc88a; }
+    .insight-icon-warning { background: rgba(246, 194, 62, 0.15); color: #d4a017; }
+    .insight-icon-danger { background: rgba(231, 74, 59, 0.15); color: #e74a3b; }
+    .insight-icon-info { background: rgba(78, 115, 223, 0.15); color: #4e73df; }
+
+    .insight-text { flex: 1; }
+    .insight-text strong { display: block; font-size: 0.9rem; color: #333; margin-bottom: 3px; }
+    .insight-text p { margin: 0; font-size: 0.85rem; color: #555; line-height: 1.45; }
+
     .live-indicator { width: 10px; height: 10px; background: var(--success); border-radius: 50%; float: right; animation: pulse 2s infinite; }
     @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
     .shap-card { background: #fff; border-radius: 16px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
     .shap-chart-wrapper { height: 280px; width: 100%; margin-top: 15px; }
     .shap-summary { font-size: 0.95rem; color: #555; margin: 10px 0 0 0; font-style: italic; }
+
+    .shap-tabs { display: flex; gap: 8px; margin-top: 12px; }
+    .shap-tab { padding: 6px 18px; border: 2px solid #e0e0e0; background: #f8f9fa; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s; color: #555; }
+    .shap-tab:hover { border-color: #4e73df; color: #4e73df; }
+    .shap-tab.active { background: #4e73df; color: #fff; border-color: #4e73df; }
+
+    .shap-legend { display: flex; gap: 20px; margin-top: 12px; justify-content: center; }
+    .shap-legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #666; font-weight: 600; }
+    .shap-dot { width: 12px; height: 12px; border-radius: 3px; }
+    .shap-dot-up { background: rgba(231, 74, 59, 0.8); }
+    .shap-dot-down { background: rgba(28, 200, 138, 0.8); }
 </style>
 {% endblock %}                                                                  

@@ -172,6 +172,232 @@ async def forecast_bg(request: ForecastRequest):
     return result
 
 
+def _generate_personal_insights(chart_data: list, data_points: list) -> list:
+    """
+    Analyse 24h glucose data and return a list of insight objects.
+    Each insight: {icon, title, body, severity}
+    severity: "good" | "warning" | "danger" | "info"
+    """
+    import math
+
+    values = [d["y"] for d in chart_data]
+    if not values:
+        return [{"icon": "info", "title": "No Data", "body": "Not enough readings to generate insights.", "severity": "info"}]
+
+    n = len(values)
+    avg = sum(values) / n
+    std = math.sqrt(sum((v - avg) ** 2 for v in values) / n) if n > 1 else 0
+    cv = (std / avg * 100) if avg > 0 else 0
+    latest = values[-1]
+    min_val = min(values)
+    max_val = max(values)
+
+    # --- Time in Range (70-180 mg/dL) ---
+    in_range = sum(1 for v in values if 70 <= v <= 180)
+    below_range = sum(1 for v in values if v < 70)
+    above_range = sum(1 for v in values if v > 180)
+    tir_pct = round(in_range / n * 100)
+    below_pct = round(below_range / n * 100)
+    above_pct = round(above_range / n * 100)
+
+    insights = []
+
+    # 1. Time in Range
+    if tir_pct >= 70:
+        insights.append({
+            "icon": "target",
+            "title": "Time in Range",
+            "body": f"{tir_pct}% of readings are within target (70-180 mg/dL). This meets the recommended >70% goal — great control today.",
+            "severity": "good"
+        })
+    elif tir_pct >= 50:
+        insights.append({
+            "icon": "target",
+            "title": "Time in Range",
+            "body": f"{tir_pct}% of readings are within target (70-180 mg/dL). Aim for >70%. Consider reviewing meal timing and portions.",
+            "severity": "warning"
+        })
+    else:
+        insights.append({
+            "icon": "target",
+            "title": "Time in Range",
+            "body": f"Only {tir_pct}% of readings are in range. {above_pct}% above and {below_pct}% below target. This needs attention.",
+            "severity": "danger"
+        })
+
+    # 2. Glucose Variability (CV)
+    if cv < 36:
+        insights.append({
+            "icon": "variability",
+            "title": "Glucose Stability",
+            "body": f"Your glucose variability (CV {cv:.0f}%) is stable. A CV below 36% indicates consistent glucose levels.",
+            "severity": "good"
+        })
+    else:
+        insights.append({
+            "icon": "variability",
+            "title": "High Glucose Swings",
+            "body": f"Your glucose variability is elevated (CV {cv:.0f}%). Frequent swings between {min_val:.0f} and {max_val:.0f} mg/dL. Consider smaller, more frequent meals with lower GI foods.",
+            "severity": "warning"
+        })
+
+    # 3. Hypo Episodes (< 70 mg/dL)
+    if below_range > 0:
+        # Find consecutive hypo episodes
+        hypo_episodes = 0
+        in_hypo = False
+        lowest_hypo = float('inf')
+        for v in values:
+            if v < 70:
+                if not in_hypo:
+                    hypo_episodes += 1
+                    in_hypo = True
+                lowest_hypo = min(lowest_hypo, v)
+            else:
+                in_hypo = False
+
+        severity = "danger" if lowest_hypo < 54 else "warning"
+        body = f"Detected {hypo_episodes} low glucose episode{'s' if hypo_episodes > 1 else ''} (below 70 mg/dL), reaching as low as {lowest_hypo:.0f} mg/dL."
+        if lowest_hypo < 54:
+            body += " Readings below 54 mg/dL are clinically significant — review insulin dosing with your care team."
+        else:
+            body += " Consider reducing insulin dose before similar activities or having a fast-acting carb on hand."
+
+        insights.append({
+            "icon": "hypo",
+            "title": "Low Glucose Alert",
+            "body": body,
+            "severity": severity
+        })
+
+    # 4. Hyper Episodes (> 180 mg/dL)
+    if above_range > 0:
+        hyper_episodes = 0
+        in_hyper = False
+        peak_hyper = 0
+        for v in values:
+            if v > 180:
+                if not in_hyper:
+                    hyper_episodes += 1
+                    in_hyper = True
+                peak_hyper = max(peak_hyper, v)
+            else:
+                in_hyper = False
+
+        severity = "danger" if peak_hyper > 250 else "warning"
+        body = f"Detected {hyper_episodes} high glucose episode{'s' if hyper_episodes > 1 else ''} (above 180 mg/dL), peaking at {peak_hyper:.0f} mg/dL."
+        if peak_hyper > 250:
+            body += " Sustained highs above 250 mg/dL increase risk of complications. Review carb intake and insulin timing."
+        else:
+            body += " Post-meal spikes can be reduced by pairing carbs with protein or fat, or taking a short walk after eating."
+
+        insights.append({
+            "icon": "hyper",
+            "title": "High Glucose Alert",
+            "body": body,
+            "severity": severity
+        })
+
+    # 5. Trend Analysis — last 30 min (6 readings)
+    if n >= 6:
+        recent = values[-6:]
+        trend_diff = recent[-1] - recent[0]
+        rate = trend_diff / 30  # mg/dL per minute
+
+        if rate > 2:
+            insights.append({
+                "icon": "trend_up",
+                "title": "Rapidly Rising",
+                "body": f"Glucose has risen {trend_diff:.0f} mg/dL in the last 30 minutes ({rate:.1f} mg/dL/min). This may indicate a recent high-GI meal. Consider activity or correction.",
+                "severity": "warning"
+            })
+        elif rate < -2:
+            insights.append({
+                "icon": "trend_down",
+                "title": "Rapidly Dropping",
+                "body": f"Glucose has dropped {abs(trend_diff):.0f} mg/dL in the last 30 minutes ({abs(rate):.1f} mg/dL/min). Monitor closely and have fast-acting carbs ready if needed.",
+                "severity": "warning"
+            })
+        elif abs(trend_diff) < 10:
+            insights.append({
+                "icon": "trend_stable",
+                "title": "Stable Trend",
+                "body": f"Glucose has been steady over the last 30 minutes (currently {latest:.0f} mg/dL). Your current management is working well.",
+                "severity": "good"
+            })
+
+    # 6. Dawn Phenomenon Detection — check if early morning readings (4-8 AM) are elevated
+    timestamps_values = []
+    for dp in data_points:
+        try:
+            ts = datetime.fromisoformat(dp["timestamp"])
+            timestamps_values.append((ts.hour, dp["bg_value"]))
+        except (ValueError, KeyError):
+            continue
+
+    dawn_readings = [v for h, v in timestamps_values if 4 <= h < 8]
+    night_readings = [v for h, v in timestamps_values if 0 <= h < 4]
+
+    if dawn_readings and night_readings:
+        dawn_avg = sum(dawn_readings) / len(dawn_readings)
+        night_avg = sum(night_readings) / len(night_readings)
+        if dawn_avg - night_avg > 20:
+            insights.append({
+                "icon": "dawn",
+                "title": "Dawn Phenomenon",
+                "body": f"Your glucose rises an average of {dawn_avg - night_avg:.0f} mg/dL between midnight and early morning ({night_avg:.0f} → {dawn_avg:.0f} mg/dL). This is common and may be managed with basal insulin adjustments.",
+                "severity": "info"
+            })
+
+    # 7. Post-Meal Spike Detection — look for sharp rises > 50 mg/dL within 2h windows
+    if n >= 24:  # at least 2 hours of data
+        spike_count = 0
+        max_spike = 0
+        for i in range(n - 24):
+            window = values[i:i + 24]
+            trough = min(window[:6])  # first 30 min
+            peak = max(window[6:])   # next 90 min
+            spike = peak - trough
+            if spike > 50:
+                spike_count += 1
+                max_spike = max(max_spike, spike)
+
+        # Only report if there are distinct spikes (not continuous high)
+        if 0 < spike_count <= 10:
+            insights.append({
+                "icon": "spike",
+                "title": "Post-Meal Spikes Detected",
+                "body": f"Detected glucose spikes of up to {max_spike:.0f} mg/dL after meals. Pre-bolusing insulin 15-20 minutes before eating, or choosing lower-GI foods, can help flatten these spikes.",
+                "severity": "warning"
+            })
+
+    # 8. Average Glucose & Estimated A1C
+    estimated_a1c = (avg + 46.7) / 28.7
+    if avg < 140:
+        insights.append({
+            "icon": "average",
+            "title": "Daily Average",
+            "body": f"Average glucose today is {avg:.0f} mg/dL (estimated A1C: {estimated_a1c:.1f}%). This is within a healthy range — keep it up.",
+            "severity": "good"
+        })
+    elif avg < 180:
+        insights.append({
+            "icon": "average",
+            "title": "Daily Average",
+            "body": f"Average glucose today is {avg:.0f} mg/dL (estimated A1C: {estimated_a1c:.1f}%). Slightly elevated — consider increasing activity or reviewing carb portions.",
+            "severity": "warning"
+        })
+    else:
+        insights.append({
+            "icon": "average",
+            "title": "Daily Average",
+            "body": f"Average glucose today is {avg:.0f} mg/dL (estimated A1C: {estimated_a1c:.1f}%). This is above target and warrants attention to diet and insulin dosing.",
+            "severity": "danger"
+        })
+
+    return insights
+
+
 @app.get("/api/glucose-stats")
 async def get_glucose_stats(user_id: str):
     """Return glucose chart data, forecasts, and AI insights for a user."""
@@ -199,10 +425,8 @@ async def get_glucose_stats(user_id: str):
     # 3. Get the very latest reading for the Card
     latest_reading = data_points[-1]
 
-    # 4. Simple Logic for AI Insight
-    avg_glucose = sum(d["y"] for d in chart_data) / len(chart_data)
-    insight = f"Your average glucose is {avg_glucose:.1f} mg/dL. "
-    insight += "You are staying well within your target range today." if avg_glucose < 140 else "Consider a light walk to help lower your current trend."
+    # 4. Advanced AI Insights — pattern detection
+    insights = _generate_personal_insights(chart_data, data_points)
 
     # 5. Run BG Forecast on the last 12 readings (60 min)
     #    Also pull meal_data to get real insulin & carb events
@@ -298,7 +522,7 @@ async def get_glucose_stats(user_id: str):
             "value": latest_reading["bg_value"],
             "time": datetime.fromisoformat(latest_reading["timestamp"]).strftime("%H:%M")
         },
-        "insights": insight
+        "insights": insights
     }
 
 
