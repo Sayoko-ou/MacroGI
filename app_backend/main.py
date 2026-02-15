@@ -7,11 +7,10 @@ from modules.gi_predictor import predict_gi_sklearn
 from modules.genai_advisor import get_food_fact
 from modules.ocr_engine import extract_nutrients
 from modules.insulin_predictor import predict_insulin_dosage
-from modules.supabase_client import save_gi_gl_endpoint
 from modules.bg_forecast import forecast_glucose, invalidate_user_model_cache
 from modules.bg_finetune import finetune_for_user
 from modules.insulin_advisor import auto_isf_icr, advise_dose, compute_iob
-from database import db
+from database import db, save_gi_gl
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -127,7 +126,7 @@ async def analyze_food(request: AnalysisRequest):
 
     # --- PROCESS 5: SAVE TO SUPABASE ---
     # Send GI and GL to Supabase endpoint
-    supabase_result = save_gi_gl_endpoint(predicted_gi, predicted_gl)
+    supabase_result = save_gi_gl(predicted_gi, predicted_gl)
     if supabase_result.get("error"):
         print(f"⚠️ Supabase save failed: {supabase_result['error']}")
     else:
