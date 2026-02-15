@@ -4,7 +4,7 @@
 
 FROM python:3.11-slim
 
-WORKDIR ./
+WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt .
