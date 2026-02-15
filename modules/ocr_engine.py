@@ -42,6 +42,9 @@ def load_models(model_path="models/table_classifier.keras"):
     else:
         logger.info("Table detection model not found. Using full image OCR.")
 
+# Disable table model for demo.
+table_model = None
+
 # --- HELPER: VISUALIZATION ---
 def draw_visuals(img, results, used_indices):
     """

@@ -33,6 +33,7 @@ def get_food_fact(food_name, nutrients, predicted_gi, predicted_gl):
                 "2. If GI/GL is high, suggest a specific food pairing (like nuts or fiber) to slow blood sugar spikes. "
                 "3. If GI/GL is low, highlight its benefit for sustained energy. "
                 "4. Give direct, actionable advice without repeating the metrics."
+                "5. Do NOT attempt to give medical advice."
             )
         }
     ]

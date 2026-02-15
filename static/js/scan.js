@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Elements ---
+    // Grab all the UI components from the HTML so for manipulation.
     const fileInput = document.getElementById('file-upload');
     const cameraInput = document.getElementById('camera-upload');
     const previewContainer = document.getElementById('image-preview-container');
@@ -28,11 +29,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Turn on the camera
     window.startCamera = async () => {
         try {
+            // Request camera access. 'facingMode: environment' prefers the back camera on phones.
             stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: 'environment' } 
             });
             liveVideo.srcObject = stream;
             
+            // Hide initial buttons, show the video feed
             initialActions.classList.add('hidden');
             liveCameraContainer.classList.remove('hidden');
         } catch (err) {
@@ -44,15 +47,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Snap the photo
     if (snapPhotoBtn) {
         snapPhotoBtn.addEventListener('click', () => {
+            // Match the canvas size to the video feed
             cameraCanvas.width = liveVideo.videoWidth;
             cameraCanvas.height = liveVideo.videoHeight;
             
+            // Draw the current video frame onto the canvas
             const context = cameraCanvas.getContext('2d');
             context.drawImage(liveVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
             
+            // Convert the canvas drawing into a JPG file
             cameraCanvas.toBlob((blob) => {
+                // Create a fake "File" object so the rest of your the doesn't know the difference
                 selectedFile = new File([blob], "webcam-snapshot.jpg", { type: "image/jpeg" });
                 
+                // Send it to existing preview logic
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     imagePreview.src = e.target.result;
@@ -62,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 reader.readAsDataURL(selectedFile);
                 
+                // Turn off the webcam light
                 stopCamera();
             }, 'image/jpeg');
         });
@@ -84,10 +93,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Modify your existing clearBtn logic to ensure the camera shuts off if they clear the UI
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
             selectedFile = null;
-            stopCamera(); 
+            stopCamera(); // Make sure the webcam turns off
             previewContainer.classList.add('hidden');
             initialActions.classList.remove('hidden');
             scanNowBtn.classList.add('hidden');
@@ -95,6 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // CONFIG: My database and models expect these specific nutrients. 
+    // I excluded Sugar here because it's usually bundled into Carbohydrates for my GI calculation.
     const VALID_NUTRIENTS = ["Calories", "Protein", "Total Fat", "Carbohydrate", "Fiber", "Sodium", "Salt"];
     let selectedFile = null;
     let giPredicted = false;
@@ -102,13 +114,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Validation Helpers ---
 
     function hasNutrientData() {
+        // I don't want users predicting GI on an empty table, so I check if there is at least one row of nutrient data, even if it's 0.
         const values = document.querySelectorAll('.nutrient-val');
         return values.length > 0;
     }
 
     function getAvailableNutrients() {
+        /* This is for the "Add Row" feature. If the OCR missed a nutrient, the user can add it.
+        But I only want to show them options that aren't ALREADY in the table.
+        */
         const currentLabels = [];
         
+        // 1. Scrape the table to see what's currently displayed
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
             const staticLabel = row.querySelector('td strong');
             const select = row.querySelector('.nutrient-name-select');
@@ -116,10 +133,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (select) currentLabels.push(select.value.trim());
         });
 
+        // 2. Filter out what is already in the table
         let available = VALID_NUTRIENTS.filter(n => !currentLabels.includes(n));
 
-        if (currentLabels.includes("Salt")) available = available.filter(n => n !== "Sodium");
-        if (currentLabels.includes("Sodium")) available = available.filter(n => n !== "Salt");
+        // 3. MUTUAL EXCLUSION: UK labels use "Salt", US labels use "Sodium".
+        // Having both in the table makes no sense and breaks the DB, so I hide one if the other is present.
+        if (currentLabels.includes("Salt")) {
+            available = available.filter(n => n !== "Sodium");
+        }
+        if (currentLabels.includes("Sodium")) {
+            available = available.filter(n => n !== "Salt");
+        }
 
         return available;
     }
@@ -127,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Image Handling ---
 
     function handleFileSelect(event) {
+        // Swaps out the upload buttons for a preview of the image they just took/uploaded.
         const file = event.target.files[0];
         if (file) {
             selectedFile = file;
@@ -144,7 +169,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if(fileInput) fileInput.addEventListener('change', handleFileSelect);
     if(cameraInput) cameraInput.addEventListener('change', handleFileSelect);
 
-    // --- Scanner Logic ---
+    if(clearBtn) clearBtn.addEventListener('click', () => {
+        // Resets the UI if they want to take a different photo.
+        selectedFile = null;
+        previewContainer.classList.add('hidden');
+        initialActions.classList.remove('hidden');
+        scanNowBtn.classList.add('hidden');
+        if(retakePrompt) retakePrompt.classList.add('hidden');
+    });
+
+    // --- Scanner Logic (Talking to FastAPI) ---
 
     if(scanNowBtn) scanNowBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
@@ -154,9 +188,11 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('file', selectedFile);
 
         try {
+            // Send the image to my FastAPI microservice to run the RapidOCR script
             const response = await fetch('/scan/ocr', { method: 'POST', body: formData });
             const data = await response.json();
 
+            // If the OCR completely fails to find text, show a prompt asking them to retake the photo.
             if (data.success === false) retakePrompt.classList.remove('hidden');
             else retakePrompt.classList.add('hidden');
             populateResults(data);
@@ -168,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Dynamic Strict Unit Generation
+    // 🌟 NEW LOGIC: Dynamic Strict Unit Generation
     function generateUnitHtml(nutrientName) {
         if (nutrientName === 'Calories') {
             return `<select class="table-input nutrient-unit" style="text-align:center; cursor:pointer;">
@@ -183,14 +219,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateResults(data) {
+        // Show the image with the bounding boxes drawn by OpenCV
         if (data.annotated_image) imagePreview.src = "data:image/jpeg;base64," + data.annotated_image;
         if(foodNameInput) foodNameInput.value = data.suggested_name || '';
         
         nutrientTableBody.innerHTML = '';
         const nutrients = data.nutrients || {};
         
+        // Build the table ONLY with what the AI found
+        // This keeps the UI clean instead of showing a bunch of 0g rows.
         VALID_NUTRIENTS.forEach(name => {
             const val = nutrients[name];
+            // Only show row if AI found a value > 0
             if (val && val > 0) {
                 nutrientTableBody.innerHTML += createRow(name, val, false);
             }
@@ -201,19 +241,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createRow(label, value, isNew = false) {
+        // Generates the HTML for a single nutrient row. 
+        // If it's manually added by the user, it becomes a dropdown menu instead of text.
         let labelHtml = `<strong>${label}</strong>`;
         let unitHtml = generateUnitHtml(label); // Auto-generate unit based on label
 
         if (isNew) {
             const available = getAvailableNutrients();
             if (available.length === 0) return null;
-            
             labelHtml = `<select class="table-input nutrient-name-select">
                 ${available.map(n => `<option value="${n}">${n}</option>`).join('')}
             </select>`;
             unitHtml = generateUnitHtml(available[0]); // Generate unit for the first available dropdown option
         }
-
         return `<tr>
             <td>${labelHtml}</td>
             <td><input type="number" min="0" step="0.1" class="table-input nutrient-val" value="${value||0}"></td>
@@ -235,16 +275,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function attachTableListeners() {
+        // Re-attach event listeners every time a row is added or deleted.
         document.querySelectorAll('.nutrient-val').forEach(input => {
             input.oninput = (e) => {
-                if (e.target.type === 'number' && parseFloat(e.target.value) < 0) e.target.value = 0;
+                // Front-end validation to stop negative numbers
+                if (e.target.type === 'number' && parseFloat(e.target.value) < 0) {
+                    e.target.value = 0;
+                }
+
+                // If they change a number, the old GI prediction is invalid, so hide it.
                 giPredicted = false;
                 if(giResultArea) giResultArea.classList.add('hidden');
                 validateFormState();
             };
         });
 
-        //  Update the unit dynamically if they change the dropdown name
+        // 🌟 NEW LOGIC: Update the unit dynamically if they change the dropdown name
         document.querySelectorAll('.nutrient-name-select').forEach(select => {
             select.addEventListener('change', (e) => {
                 const tr = e.target.closest('tr');
@@ -257,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // If they change Calories from kJ to kcal (or vice versa), prediction resets
+        // 🌟 NEW LOGIC: If they change Calories from kJ to kcal (or vice versa), prediction resets
         document.querySelectorAll('.nutrient-unit').forEach(select => {
             select.addEventListener('change', () => {
                 giPredicted = false;
@@ -276,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- AI Prediction Logic ---
+    // --- AI Prediction Logic (GI, GL, Insulin) ---
 
     if(predictGiBtn) predictGiBtn.addEventListener('click', async () => {
         if (!hasNutrientData()) {
@@ -284,6 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Scrape whatever is currently in the HTML table so user edits are respected.
         const nutrientData = {};
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
             const sel = row.querySelector('.nutrient-name-select');
@@ -292,13 +339,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (name) {
                 let val = parseFloat(row.querySelector('.nutrient-val').value) || 0;
-                const unit = row.querySelector('.nutrient-unit').value;
+                const unit = row.querySelector('.nutrient-unit').value; // Read the newly added unit HTML
 
-                // Convert kJ to kcal before sending to AI Model
+                // 🌟 NEW LOGIC: Convert kJ to kcal before sending to AI Model
                 if (name === "Calories" && unit === "kJ") {
                     val = Math.round(val / 4.184); 
                 }
 
+                // Map the pretty UI names back to the keys my database/models expect.
                 const dbKey = name.toLowerCase().replace("total fat", "fat").replace("carbohydrate", "carbs");
                 nutrientData[dbKey] = val;
             }
@@ -306,6 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         predictGiBtn.textContent = "Analyzing...";
         try {
+            // Call the second FastAPI endpoint to run the GI and Insulin models
             const res = await fetch('/scan/predict_gi', {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' },
@@ -316,15 +365,18 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (res.ok) {
+                // Update the UI with the AI's results
                 giValueDisplay.textContent = data.gi;
                 giValueDisplay.style.color = data.gi_color;
                 if (glValueDisplay) glValueDisplay.textContent = data.gl;
 
+                // Show the Generative AI Tip
                 document.querySelector('.ai-message').innerHTML = `💡 ${data.ai_message || 'Balanced meal.'}`;
 
                 giResultArea.classList.remove('hidden');
                 giPredicted = true;
 
+                // Fetch insulin advice using scanned carbs
                 fetchInsulinAdvice(nutrientData);
             }
         } finally { 
@@ -336,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Save Logic ---
 
     if(saveEntryBtn) saveEntryBtn.addEventListener('click', async () => {
+        // 1. Initialize payload with 0s to prevent null errors in Supabase
         const payload = {
             foodname: foodNameInput.value,
             mealtype: mealTypeSelect.value,
@@ -347,6 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let saltValue = 0;
 
+        // 2. Scrape the table one last time
         document.querySelectorAll('#nutrient-table-body tr').forEach(row => {
             const sel = row.querySelector('.nutrient-name-select');
             const lab = row.querySelector('td strong');
@@ -354,16 +408,16 @@ document.addEventListener('DOMContentLoaded', () => {
             let val = parseFloat(row.querySelector('.nutrient-val').value) || 0;
             const unit = row.querySelector('.nutrient-unit').value; // Read the strictly locked unit
 
-            if (name === "Calories") {
-                // Convert kJ to kcal before saving to DB
-                if (unit === "kJ") {
-                    val = Math.round(val / 4.184);
-                }
-                payload.calories = val;
-            } else if (name === "Salt") {
+            if (name === "Salt") {
                 saltValue = val;
             } else {
+                // 🌟 NEW LOGIC: Convert kJ to kcal before saving to DB
+                if (name === "Calories" && unit === "kJ") {
+                    val = Math.round(val / 4.184);
+                }
+
                 const keyMap = {
+                    "Calories": "calories",
                     "Protein": "protein",
                     "Total Fat": "fat",
                     "Carbohydrate": "carbs",
@@ -375,11 +429,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Convert Salt to Sodium
+        // 3. CONVERSION: My database only stores Sodium (in mg). 
+        // If the label gave us Salt (in grams), I have to do the math to convert it here.
         if (saltValue > 0 && payload.sodium === 0) {
             payload.sodium = Math.round((saltValue / 2.5) * 1000);
         }
 
+        // 4. Send to the Flask backend to safely save to Supabase
         try {
             const res = await fetch('/scan/save_entry', {
                 method: 'POST',
@@ -390,7 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (result.status === "success") {
                 alert("Entry Saved Successfully!");
-                window.location.href = "/"; 
+                window.location.href = "/"; // Redirect home after saving
             } else {
                 alert("Error: " + result.error);
             }
@@ -405,7 +461,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const nameFilled = foodNameInput.value.trim() !== '';
         const dataPresent = hasNutrientData(); 
         
+        // Disable GI Prediction if there's no data
         predictGiBtn.disabled = !dataPresent;
+
+        // Force the user to name the food AND run the GI prediction before they can save it.
+        // This is part of my "Human in the Loop" ethical design.
         saveEntryBtn.disabled = !(nameFilled && giPredicted);
         saveEntryBtn.textContent = saveEntryBtn.disabled ? "Complete all fields to save" : "Save Entry";
     }
@@ -414,6 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Insulin Advisor ---
 
+    // Load auto ISF/ICR placeholders on page load
     (async function loadAutoISFICR() {
         try {
             const res = await fetch('/scan/auto-isf-icr');
@@ -475,6 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             hintDiv.classList.remove('hidden');
 
+            // Pre-fill the insulin input if empty
             const insulinInput = document.getElementById('insulin-input');
             if (insulinInput && !insulinInput.value) {
                 insulinInput.value = data.total_dose.toFixed(1);

@@ -150,12 +150,41 @@
 }
 
 /* AI Card */
-.ai-card { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: none; }
-.ai-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-.ai-header h3 { margin: 0; font-size: 18px; }
+.ai-card { 
+    background: #ffffff; /* Changed to match other white cards */
+    border: none; 
+}
 
-.ai-btn { background: white; border: 1px solid #ccc; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; }
-.ai-btn:hover { border-color: #333; }
+.ai-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 15px; 
+}
+
+.ai-header h3 { 
+    margin: 0; 
+    font-size: 18px; 
+}
+
+.ai-btn { 
+    background: var(--nav-blue); 
+    border: none; 
+    color: #ffffff; 
+    padding: 8px 16px; 
+    cursor: pointer; 
+    font-weight: 700; 
+    font-size: 13px; 
+    border-radius: 8px; 
+    transition: all 0.2s ease;
+    display: inline-block;
+    line-height: 1;
+}
+
+.ai-btn:hover { 
+    background: #2b5db0; /* Slightly darker blue for a press effect */
+    transform: translateY(-1px); /* Subtle lift on hover */
+}
 
 .ai-content { display: flex; align-items: center; gap: 20px; }
 .gi-box { background: white; padding: 10px 20px; border-radius: 10px; text-align: center; min-width: 80px; }
